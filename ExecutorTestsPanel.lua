@@ -1,9 +1,6 @@
-local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-
-local LocalPlayer = Players.LocalPlayer
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CheckerPanelGUI"
@@ -11,7 +8,7 @@ ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0.3, 0, 0.4, 0) -- Responsive
+MainFrame.Size = UDim2.new(0.3, 0, 0.4, 0)
 MainFrame.Position = UDim2.new(0.35, 0, 0.3, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 MainFrame.BackgroundTransparency = 0.1
@@ -35,7 +32,7 @@ local function AnimateUIStroke()
     end
 end
 
-spawn(AnimateUIStroke) -- Run in a separate thread
+spawn(AnimateUIStroke)
 
 local Title = Instance.new("TextLabel")
 Title.Text = "🔬 Executor Checker Panel"
@@ -85,7 +82,7 @@ local function CreateButton(text, position, scriptUrl)
 end
 
 CreateButton("📌 UNC Test Official", 0.2, "https://rawscripts.net/raw/Universal-Script-UNC-Test-13114")
-CreateButton("📌 UNC Test Fkers", 0.32, "https://gitlab.com/sens3/nebunu/-/raw/main/HummingBird8's_sUNC_yes_i_moved_to_gitlab_because_my_github_acc_got_brickedd/sUNCm0m3n7.lua")
+CreateButton("📌 sUNC Test", 0.32, "https://gitlab.com/sens3/nebunu/-/raw/main/HummingBird8's_sUNC_yes_i_moved_to_gitlab_because_my_github_acc_got_brickedd/sUNCm0m3n7.lua")
 CreateButton("🍒 CET (Cherry's Environment Test)", 0.44, "https://raw.githubusercontent.com/InfernusScripts/Executor-Tests/refs/heads/main/Environment/Test.lua")
 CreateButton("⚙️ Require Support", 0.56, "https://raw.githubusercontent.com/RealBatu20/AI-Scripts-2025/refs/heads/main/RequireChecker.lua")
 CreateButton("🆔 Identity Test", 0.68, "https://raw.githubusercontent.com/InfernusScripts/Executor-Tests/main/Identity/Test.lua")
