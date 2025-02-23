@@ -20,7 +20,7 @@ end
 local httpRequestFunc = getHttpRequest()
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "JokesGui"
+ScreenGui.Name = "JokesGui1"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = game:GetService("CoreGui")
 if syn and syn.protect_gui then
@@ -56,7 +56,7 @@ TitleLabel.Parent = MainFrame
 TitleLabel.BackgroundTransparency = 1
 TitleLabel.Position = UDim2.new(0,8,0,8)
 TitleLabel.Size = UDim2.new(1, -50, 0, 24)
-TitleLabel.Text = "😂 Jokes Gui"
+TitleLabel.Text = "😂 Jokes Gui (NSFW)"
 TitleLabel.Font = Enum.Font.GothamBold
 TitleLabel.TextSize = 20
 TitleLabel.TextColor3 = Color3.new(1,1,1)
