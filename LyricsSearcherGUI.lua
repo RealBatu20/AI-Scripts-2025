@@ -1,13 +1,7 @@
--- Music Lyrics Searcher GUI by Lua God 💻
--- Advanced, ingenious and fun script for searching and saving song lyrics 🎵✨
-
 local HttpService = game:GetService("HttpService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
---------------------------------------------------------------------------------
--- HTTP Request Handler (Multi-method) 🚀
---------------------------------------------------------------------------------
 local function getHttpRequest()
     if syn and syn.request then
         return syn.request
@@ -25,9 +19,6 @@ local function getHttpRequest()
 end
 local httpRequestFunc = getHttpRequest()
 
---------------------------------------------------------------------------------
--- Create Safe GUI in CoreGui 🎨
---------------------------------------------------------------------------------
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "LyricsSearcherGui"
 ScreenGui.ResetOnSpawn = false
@@ -36,9 +27,6 @@ if syn and syn.protect_gui then
     syn.protect_gui(ScreenGui)
 end
 
---------------------------------------------------------------------------------
--- Main Frame Setup: Modern, clear & compact design for all devices 📱💻
---------------------------------------------------------------------------------
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
@@ -55,7 +43,6 @@ local UIStroke = Instance.new("UIStroke", MainFrame)
 UIStroke.Thickness = 2
 UIStroke.Color = Color3.new(1, 0, 0)  -- Starting with red
 
--- Animate the UIStroke color with a smooth tween 🎨
 local function animateStroke()
     local tweenInfo = TweenInfo.new(2, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true)
     local tween = TweenService:Create(UIStroke, tweenInfo, {Color = Color3.new(0, 1, 0)})
@@ -63,9 +50,6 @@ local function animateStroke()
 end
 animateStroke()
 
---------------------------------------------------------------------------------
--- Title Label for the GUI 🎶
---------------------------------------------------------------------------------
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Name = "TitleLabel"
 TitleLabel.Parent = MainFrame
@@ -78,9 +62,6 @@ TitleLabel.TextSize = 20
 TitleLabel.TextColor3 = Color3.new(1,1,1)
 TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
---------------------------------------------------------------------------------
--- Hide Button to Collapse/Expand the GUI 👁️
---------------------------------------------------------------------------------
 local HideButton = Instance.new("TextButton")
 HideButton.Name = "HideButton"
 HideButton.Parent = MainFrame
@@ -94,9 +75,6 @@ HideButton.TextSize = 18
 local HideButtonUICorner = Instance.new("UICorner", HideButton)
 HideButtonUICorner.CornerRadius = UDim.new(0, 8)
 
---------------------------------------------------------------------------------
--- Close Button for Exiting the GUI 😎
---------------------------------------------------------------------------------
 local CloseButton = Instance.new("TextButton")
 CloseButton.Name = "CloseButton"
 CloseButton.Parent = MainFrame
@@ -114,9 +92,6 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
---------------------------------------------------------------------------------
--- Draggable Functionality (Supports PCs & Mobiles) ✨
---------------------------------------------------------------------------------
 local dragging, dragInput, dragStart, startPos
 
 local function update(input)
@@ -144,9 +119,6 @@ MainFrame.InputChanged:Connect(function(input)
     end
 end)
 
---------------------------------------------------------------------------------
--- UI Elements for Inputs and Buttons 🎤
---------------------------------------------------------------------------------
 local ArtistInput = Instance.new("TextBox")
 ArtistInput.Name = "ArtistInput"
 ArtistInput.Parent = MainFrame
@@ -203,9 +175,6 @@ SaveLyricsButton.TextSize = 18
 local SaveLyricsButtonUICorner = Instance.new("UICorner", SaveLyricsButton)
 SaveLyricsButtonUICorner.CornerRadius = UDim.new(0, 8)
 
---------------------------------------------------------------------------------
--- Scrolling Frame for Displaying Lyrics with AutoCanvasSize 📜
---------------------------------------------------------------------------------
 local LyricsFrame = Instance.new("ScrollingFrame")
 LyricsFrame.Name = "LyricsFrame"
 LyricsFrame.Parent = MainFrame
@@ -227,9 +196,6 @@ LyricsUIListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(funct
     LyricsFrame.CanvasSize = UDim2.new(0, 0, 0, LyricsUIListLayout.AbsoluteContentSize.Y)
 end)
 
---------------------------------------------------------------------------------
--- Location Label to Show Where Lyrics are Saved 📂
---------------------------------------------------------------------------------
 local LocationLabel = Instance.new("TextLabel")
 LocationLabel.Name = "LocationLabel"
 LocationLabel.Parent = MainFrame
@@ -242,14 +208,8 @@ LocationLabel.TextSize = 14
 LocationLabel.TextColor3 = Color3.new(1, 1, 1)
 LocationLabel.TextXAlignment = Enum.TextXAlignment.Left
 
---------------------------------------------------------------------------------
--- Variables for Lyrics Storage 💾
---------------------------------------------------------------------------------
 local lastLyrics = ""
 
---------------------------------------------------------------------------------
--- Function to Display Lyrics in the Scrolling Frame 💬
---------------------------------------------------------------------------------
 local function displayLyrics(text)
     lastLyrics = text
     for _, child in pairs(LyricsFrame:GetChildren()) do
@@ -272,9 +232,6 @@ local function displayLyrics(text)
     end
 end
 
---------------------------------------------------------------------------------
--- Function to Search Lyrics via the Lyrics.ovh API 🎤
---------------------------------------------------------------------------------
 local function searchLyrics()
     local artist = ArtistInput.Text
     local title = TitleInput.Text
@@ -314,9 +271,6 @@ SearchButton.MouseButton1Click:Connect(function()
     searchLyrics()
 end)
 
---------------------------------------------------------------------------------
--- Function to Save Lyrics to Local Storage 💾✨
---------------------------------------------------------------------------------
 local function saveLyrics()
     local artist = ArtistInput.Text
     local title = TitleInput.Text
@@ -345,9 +299,6 @@ SaveLyricsButton.MouseButton1Click:Connect(function()
     saveLyrics()
 end)
 
---------------------------------------------------------------------------------
--- Hide/Show GUI Toggle Functionality 👁️✨
---------------------------------------------------------------------------------
 local isExpanded = true
 local collapsedSize = UDim2.new(0, 300, 0, 40)
 local expandedSize = UDim2.new(0, 300, 0, 370)
@@ -380,6 +331,3 @@ HideButton.MouseButton1Click:Connect(function()
         HideButton.Text = "🔼"
     end
 end)
-
---------------------------------------------------------------------------------
--- End of Music Lyrics Searcher GUI Script 🎉
