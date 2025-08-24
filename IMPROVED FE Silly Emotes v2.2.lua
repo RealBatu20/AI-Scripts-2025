@@ -8,12 +8,18 @@ local player = Players.LocalPlayer
 local emotes = {}
 local currentAnimationTrack = nil
 local editingEmote = nil
---// 1. New Global Variables
+
+--// State management variables
 local currentPlayButton = nil
 local currentEmote = nil
 local isStuck = false
 local originalWalkSpeed = 16
 local originalJumpPower = 50
+
+--// Pagination variables
+local currentPage = 1
+local itemsPerPage = 28
+local filteredAndSortedEmotes = {}
 
 function refresh()
 print("placeholdey")
@@ -365,7 +371,7 @@ local defaultEmotes = {
     {cr = "Dec 19, 2023", ugc = false, isAnimation = false, price = 0, id = 15679958535, fav = false, imageId = 15679958535, n = "BLACKPINK ROSÉ On The Ground"},
     {cr = "Sep 15, 2022", ugc = false, isAnimation = false, price = 0, id = 4646296016, fav = false, imageId = 4646296016, n = "Bunny Hop"},
     {cr = "Nov 25, 2023", ugc = false, isAnimation = false, price = 0, id = 14901369589, fav = false, imageId = 14901369589, n = "BLACKPINK Shut Down - Part 1"},
-    {cr = "Jan 31, 2024", ugc = false, isAnimation = false, price = 0, id = 16181843366, fav = false, imageId = 16181843366, n = "BLACKPINK Kill This Love"},
+    {cr = "Jan 31, 2024", ugc = false, isAnimation = false, price = 0, id = 16181843366, fav = false, imageId = 16181840356, n = "BLACKPINK Kill This Love"},
     {cr = "Jul 11, 2024", ugc = false, isAnimation = false, price = 0, id = 18443271885, fav = false, imageId = 18443271885, n = "SpongeBob Dance"},
     {cr = "Sep 15, 2022", ugc = false, isAnimation = false, price = 0, id = 3236848555, fav = false, imageId = 3236848555, n = "Borock's Rage"},
     {cr = "Jul 27, 2022", ugc = false, isAnimation = false, price = 0, id = 10370926562, fav = false, imageId = 10370926562, n = "The Conductor - George Ezra"},
@@ -453,7 +459,6 @@ local function initEmotes()
     if loaded then
         emotes = loaded
     else
-        
         emotes = defaultEmotes
         saveEmotes()
     end
@@ -469,8 +474,8 @@ gui.ResetOnSpawn = false
 gui.Parent = game:GetService("CoreGui")
 
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 400, 0, 400)
-main.Position = UDim2.new(0, 20, 0.5, -200)
+main.Size = UDim2.new(0, 400, 0, 450) -- Increased height for pagination
+main.Position = UDim2.new(0, 20, 0.5, -225)
 main.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 main.Active = true
 main.Draggable = true
@@ -488,7 +493,7 @@ topBar.Parent = main
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0, 80, 1, 0)
 title.BackgroundTransparency = 1
-title.Text = "  Emotes v2.1"
+title.Text = "  Emotes v2.2"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 14
@@ -499,7 +504,7 @@ title.Parent = topBar
 
 
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(0, 220, 0, 24)
+searchBox.Size = UDim2.new(0, 190, 0, 24) -- Resized to fit the new button
 searchBox.Position = UDim2.new(0, 90, 0.5, -12)
 searchBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 searchBox.TextColor3 = Color3.new(1, 1, 1)
@@ -513,7 +518,7 @@ searchBox.Parent = topBar
 
 local minButton = Instance.new("TextButton")
 minButton.Size = UDim2.new(0, 30, 0, 30)
-minButton.Position = UDim2.new(1, -60, 0, 0)
+minButton.Position = UDim2.new(1, -60, 0, 0) -- Shifted to make space
 minButton.BackgroundTransparency = 1
 minButton.TextColor3 = Color3.new(1, 1, 1)
 minButton.Text = "-"
@@ -525,7 +530,7 @@ minButton.Parent = topBar
 
 local closeButton = Instance.new("TextButton")
 closeButton.Size = UDim2.new(0, 30, 0, 30)
-closeButton.Position = UDim2.new(1, -30, 0, 0)
+closeButton.Position = UDim2.new(1, -30, 0, 0) -- No change here
 closeButton.BackgroundTransparency = 1
 closeButton.TextColor3 = Color3.new(1, 1, 1)
 closeButton.Text = "X"
@@ -535,7 +540,7 @@ closeButton.TextScaled = true
 closeButton.Parent = topBar
 
 local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1, -10, 1, -85) 
+scroll.Size = UDim2.new(1, -10, 1, -125) -- Adjusted size for new elements
 scroll.Position = UDim2.new(0, 5, 0, 35)
 scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 scroll.ScrollBarThickness = 6
@@ -550,7 +555,7 @@ layout.Parent = scroll
 
 local filterFrame = Instance.new("Frame")
 filterFrame.Size = UDim2.new(1, -10, 0, 40)
-filterFrame.Position = UDim2.new(0, 5, 1, -45)
+filterFrame.Position = UDim2.new(0, 5, 1, -90) -- Repositioned
 filterFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 filterFrame.Parent = main
 
@@ -561,6 +566,47 @@ filterLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 filterLayout.SortOrder = Enum.SortOrder.LayoutOrder
 filterLayout.Padding = UDim.new(0, 10)
 filterLayout.Parent = filterFrame
+
+--// Pagination UI
+local navFrame = Instance.new("Frame")
+navFrame.Size = UDim2.new(1, -10, 0, 40)
+navFrame.Position = UDim2.new(0, 5, 1, -45) -- Positioned at the very bottom
+navFrame.BackgroundTransparency = 1
+navFrame.Parent = main
+
+local prevButton = Instance.new("TextButton")
+prevButton.Size = UDim2.new(0.3, 0, 0.8, 0)
+prevButton.Position = UDim2.new(0, 0, 0.1, 0)
+prevButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+prevButton.TextColor3 = Color3.new(1, 1, 1)
+prevButton.Text = "Previous"
+prevButton.Font = Enum.Font.SourceSansBold
+prevButton.TextSize = 14
+prevButton.TextScaled = true
+prevButton.Parent = navFrame
+
+local pageLabel = Instance.new("TextLabel")
+pageLabel.Size = UDim2.new(0.3, 0, 0.8, 0)
+pageLabel.Position = UDim2.new(0.35, 0, 0.1, 0)
+pageLabel.BackgroundTransparency = 1
+pageLabel.TextColor3 = Color3.new(1, 1, 1)
+pageLabel.Text = "Page 1 / 1"
+pageLabel.Font = Enum.Font.SourceSans
+pageLabel.TextSize = 14
+pageLabel.TextScaled = true
+pageLabel.Parent = navFrame
+
+local nextButton = Instance.new("TextButton")
+nextButton.Size = UDim2.new(0.3, 0, 0.8, 0)
+nextButton.Position = UDim2.new(0.7, 0, 0.1, 0)
+nextButton.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+nextButton.TextColor3 = Color3.new(1, 1, 1)
+nextButton.Text = "Next"
+nextButton.Font = Enum.Font.SourceSansBold
+nextButton.TextSize = 14
+nextButton.TextScaled = true
+nextButton.Parent = navFrame
+
 
 local function makeBtn(txt, callback)
     local b = Instance.new("TextButton")
@@ -595,12 +641,12 @@ minButton.MouseButton1Click:Connect(function()
         main.Size = minimizedSize
         scroll.Visible = false
         filterFrame.Visible = false
-        minButton.Text = "+"
+        navFrame.Visible = false
     else
         main.Size = originalSize
         scroll.Visible = true
         filterFrame.Visible = true
-        minButton.Text = "-"
+        navFrame.Visible = true
     end
 end)
 
@@ -618,16 +664,15 @@ local closeBegs = {
 }
 local confirmationFrame
 
---// 3. `stopCurrentAnimation` and `playAnimation` Functions
+--// Replaced Functions
 local function stopCurrentAnimation()
-    isStuck = false -- Always un-stuck when stopping an animation
+    isStuck = false
     
     local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if humanoid then
         for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
             track:Stop(0.1)
         end
-        -- Restore movement speed just in case
         humanoid.WalkSpeed = originalWalkSpeed
         humanoid.JumpPower = originalJumpPower
     end
@@ -892,45 +937,46 @@ local function openEditUI(emote)
     local yPos = 10
     
     local function addField(label, value, isNumeric)
-        local frame = Instance.new("Frame")
-        frame.Size = UDim2.new(1, 0, 0, 30)
-        frame.Position = UDim2.new(0, 0, 0, yPos)
-        frame.BackgroundTransparency = 1
-        frame.Parent = settingsFrame
-        
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(0.4, 0, 1, 0)
-        lbl.BackgroundTransparency = 1
-        lbl.Text = label
-        lbl.TextColor3 = Color3.new(1, 1, 1)
-        lbl.Font = Enum.Font.SourceSans
-        lbl.TextSize = 14
-        lbl.TextScaled = true
-        lbl.TextXAlignment = Enum.TextXAlignment.Left
-        lbl.Parent = frame
-        
-        local box = Instance.new("TextBox")
-        box.Size = UDim2.new(0.6, 0, 1, 0)
-        box.Position = UDim2.new(0.4, 0, 0, 0)
-        box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        box.TextColor3 = Color3.new(1, 1, 1)
-        box.Text = tostring(value)
-        box.Font = Enum.Font.SourceSans
-        box.TextSize = 14
-        box.TextScaled = true
-        box.Parent = frame
-        
-        if isNumeric then
-            box:GetPropertyChangedSignal("Text"):Connect(function()
-                if not tonumber(box.Text) then
-                    box.Text = box.Text:gsub("%D", "")
-                end
-            end)
-        end
-        
-        yPos += 35
-        return box
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 30)
+    frame.Position = UDim2.new(0, 0, 0, yPos)
+    frame.BackgroundTransparency = 1
+    frame.Parent = settingsFrame
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.4, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = label
+    lbl.TextColor3 = Color3.new(1, 1, 1)
+    lbl.Font = Enum.Font.SourceSans
+    lbl.TextSize = 14
+    lbl.TextScaled = true
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
+    
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0.6, 0, 1, 0)
+    box.Position = UDim2.new(0.4, 0, 0, 0)
+    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    box.TextColor3 = Color3.new(1, 1, 1)
+    box.Text = tostring(value)
+    box.Font = Enum.Font.SourceSans
+    box.TextSize = 14
+    box.TextScaled = true
+    box.ClearTextOnFocus = false --// This line has been added
+    box.Parent = frame
+    
+    if isNumeric then
+        box:GetPropertyChangedSignal("Text"):Connect(function()
+            if not tonumber(box.Text) then
+                box.Text = box.Text:gsub("%D", "")
+            end
+        end)
     end
+    
+    yPos += 35
+    return box
+end
     
     local nameBox = addField("Name:", emote.n)
     local idBox = addField("ID:", emote.id)
@@ -1100,15 +1146,18 @@ local function openEditUI(emote)
     end)
 end
 
---// 2. The `RunService.Heartbeat` Connection (NEW VERSION)
+--// MODIFIED RunService.Heartbeat Connection for movable stuck state
 RunService.Heartbeat:Connect(function()
     if not player.Character then return end
     local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
 
-    -- Only check for movement cancellation if the animation is NOT stuck
-    if not isStuck then
-        if currentAnimationTrack and (humanoid.MoveDirection.Magnitude > 0 or humanoid:GetState() == Enum.HumanoidStateType.Jumping) then
+    if isStuck and currentAnimationTrack then
+        -- Animation is stuck, but player can move. We do nothing here to override movement.
+        -- The animation speed is set to 0 when 'stuck' is clicked.
+    elseif not isStuck and currentAnimationTrack then
+        -- If not stuck, use the original logic to stop the animation on movement.
+        if humanoid.MoveDirection.Magnitude > 0 or humanoid:GetState() == Enum.HumanoidStateType.Jumping then
             stopCurrentAnimation()
         end
     end
@@ -1125,10 +1174,9 @@ local function createPlaceholderEmote()
         isAnimation = false,
         imageId = 0
     }
-    table.insert(emotes, newEmote)
+    table.insert(emotes, 1, newEmote)
     saveEmotes()
     openEditUI(newEmote)
-    refresh()
 end
 
 local addBtn = makeBtn("Add New", function()
@@ -1137,6 +1185,7 @@ end)
 
 local sortBtn = makeBtn("Sort: "..sortModes[sortIndex], function(btn)
     sortIndex = sortIndex % #sortModes + 1
+    currentPage = 1
     refresh()
 end)
 
@@ -1148,12 +1197,19 @@ local ugcBtn = makeBtn("All", function(btn)
     else
         ugcOnly = nil
     end
+    currentPage = 1
     refresh()
 end)
 
 function refresh()
-    sortBtn.Text = "Sort: "..sortModes[sortIndex]
+    for _, child in ipairs(scroll:GetChildren()) do
+        if not child:IsA("UIGridLayout") then
+            child:Destroy()
+        end
+    end
     
+    -- Update button text
+    sortBtn.Text = "Sort: "..sortModes[sortIndex]
     if ugcOnly == nil then
         ugcBtn.Text = "All"
     elseif ugcOnly == true then
@@ -1162,66 +1218,56 @@ function refresh()
         ugcBtn.Text = "Roblox"
     end
 
-    for _, child in ipairs(scroll:GetChildren()) do
-        if not child:IsA("UIGridLayout") then
-            child:Destroy()
+    -- Step 1: Filter and Sort the entire list once
+    filteredAndSortedEmotes = {}
+    local searchLower = string.lower(searchText)
+    for _, emote in ipairs(emotes) do
+        if (ugcOnly == nil or emote.ugc == ugcOnly) and (searchLower == "" or string.find(string.lower(emote.n), searchLower, 1, true)) then
+            table.insert(filteredAndSortedEmotes, emote)
         end
-    end
-
-    local sorted = {}
-    for i, emote in ipairs(emotes) do
-        table.insert(sorted, emote)
     end
     
     local mode = sortModes[sortIndex]
-
-    table.sort(sorted, function(a, b)
-        if a.fav and not b.fav then
-            return true
-        elseif not a.fav and b.fav then
-            return false
-        end
-        
-        local mode = sortModes[sortIndex]
-        
-        if mode == "A-Z" then
-            return a.n < b.n
-        elseif mode == "Z-A" then
-            return a.n > b.n
-        elseif mode == "Expensive" then
-            return a.price > b.price
-        elseif mode == "Cheap" then
-            return a.price < b.price
-        elseif mode == "New" then
+    table.sort(filteredAndSortedEmotes, function(a, b)
+        if a.fav and not b.fav then return true end
+        if not a.fav and b.fav then return false end
+        if mode == "A-Z" then return a.n < b.n end
+        if mode == "Z-A" then return a.n > b.n end
+        if mode == "Expensive" then return a.price > b.price end
+        if mode == "Cheap" then return a.price < b.price end
+        if mode == "New" then
             local function parseDate(dateStr)
-                local months = {Jan=1,Feb=2,Mar=3,Apr=4,May=5,Jun=6,Jul=7,Aug=8,Sep=9,Oct=10,Nov=11,Dec=12}
-                local month, day, year = dateStr:match("(%a+) (%d+), (%d+)")
-                return os.time({year = tonumber(year), month = months[month], day = tonumber(day)})
+                local m,d,y = dateStr:match("(%a+) (%d+), (%d+)")
+                return os.time({year=tonumber(y), month=({Jan=1,Feb=2,Mar=3,Apr=4,May=5,Jun=6,Jul=7,Aug=8,Sep=9,Oct=10,Nov=11,Dec=12})[m], day=tonumber(d)})
             end
-            local timeA = a.cr and parseDate(a.cr) or 0
-            local timeB = b.cr and parseDate(b.cr) or 0
-            return timeA > timeB
-        elseif mode == "Old" then
-            local function parseDate(dateStr)
-                local months = {Jan=1,Feb=2,Mar=3,Apr=4,May=5,Jun=6,Jul=7,Aug=8,Sep=9,Oct=10,Nov=11,Dec=12}
-                local month, day, year = dateStr:match("(%a+) (%d+), (%d+)")
-                return os.time({year = tonumber(year), month = months[month], day = tonumber(day)})
-            end
-            local timeA = a.cr and parseDate(a.cr) or 0
-            local timeB = b.cr and parseDate(b.cr) or 0
-            return timeA < timeB
+            return (a.cr and parseDate(a.cr) or 0) > (b.cr and parseDate(b.cr) or 0)
         end
-        
+        if mode == "Old" then
+            local function parseDate(dateStr)
+                local m,d,y = dateStr:match("(%a+) (%d+), (%d+)")
+                return os.time({year=tonumber(y), month=({Jan=1,Feb=2,Mar=3,Apr=4,May=5,Jun=6,Jul=7,Aug=8,Sep=9,Oct=10,Nov=11,Dec=12})[m], day=tonumber(d)})
+            end
+            return (a.cr and parseDate(a.cr) or 0) < (b.cr and parseDate(b.cr) or 0)
+        end
         return false
     end)
-
-    local searchLower = string.lower(searchText)
     
-    for _, em in ipairs(sorted) do
-		if em.id == 0 then continue end
-        if ugcOnly == true and not em.ugc then continue end
-        if ugcOnly == false and em.ugc then continue end
-        if searchLower ~= "" and not string.find(string.lower(em.n), searchLower, 1, true) then continue end
+    -- Step 2: Pagination Logic
+    local totalPages = math.max(1, math.ceil(#filteredAndSortedEmotes / itemsPerPage))
+    currentPage = math.clamp(currentPage, 1, totalPages)
+    
+    pageLabel.Text = "Page "..currentPage.." / "..totalPages
+    prevButton.Visible = currentPage > 1
+    nextButton.Visible = currentPage < totalPages
+    
+    local startIndex = (currentPage - 1) * itemsPerPage + 1
+    local endIndex = math.min(startIndex + itemsPerPage - 1, #filteredAndSortedEmotes)
+    
+    -- Step 3: Create GUI elements for the current page ONLY
+    for i = startIndex, endIndex do
+        local em = filteredAndSortedEmotes[i]
+        
+        if em.id == 0 then continue end
 
         local container = Instance.new("TextButton")
         container.Size = UDim2.new(0, 90, 0, 130)
@@ -1243,8 +1289,6 @@ function refresh()
         
         favButton.MouseButton1Click:Connect(function()
             em.fav = not em.fav
-            favButton.Text = em.fav and "★" or "☆"
-            favButton.TextColor3 = em.fav and Color3.fromRGB(255, 215, 0) or Color3.new(1, 1, 1)
             saveEmotes()
             refresh()
         end)
@@ -1260,7 +1304,6 @@ function refresh()
         playButton.TextScaled = true
         playButton.Parent = container
         
-        --// 4. Button Creation in `refresh()`
         playButton.MouseButton1Click:Connect(function()
             if currentPlayButton == playButton then
                 stopCurrentAnimation()
@@ -1269,50 +1312,50 @@ function refresh()
             end
         end)
 
-        local fastButton = Instance.new("TextButton")
-        fastButton.Name = "fastButton"
-        fastButton.Size = UDim2.new(0, 22, 0, 20)
-        fastButton.Position = UDim2.new(1, -46, 0, 2)
-        fastButton.BackgroundTransparency = 1
-        em.isCurrentlyFast = em.isCurrentlyFast or false
-        fastButton.Text = em.isCurrentlyFast and "default" or "fast"
-        fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
-        fastButton.Font = Enum.Font.SourceSansBold
-        fastButton.TextSize = 14
-        fastButton.TextScaled = true
-        fastButton.Parent = container
+        --// Conditional button creation
+        if em.isAnimation then
+            local fastButton = Instance.new("TextButton")
+            fastButton.Name = "fastButton"
+            fastButton.Size = UDim2.new(0, 22, 0, 20)
+            fastButton.Position = UDim2.new(1, -46, 0, 2)
+            fastButton.BackgroundTransparency = 1
+            em.isCurrentlyFast = em.isCurrentlyFast or false
+            fastButton.Text = em.isCurrentlyFast and "default" or "fast"
+            fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
+            fastButton.Font = Enum.Font.SourceSansBold
+            fastButton.TextSize = 14
+            fastButton.TextScaled = true
+            fastButton.Parent = container
 
-        fastButton.MouseButton1Click:Connect(function()
-            if currentEmote == em and currentAnimationTrack then
-                em.isCurrentlyFast = not em.isCurrentlyFast
-                currentAnimationTrack:AdjustSpeed(em.isCurrentlyFast and 3 or 1)
-                fastButton.Text = em.isCurrentlyFast and "default" or "fast"
-                fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
-            end
-        end)
-        
-        local stuckButton = Instance.new("TextButton")
-        stuckButton.Name = "stuckButton"
-        stuckButton.Size = UDim2.new(0, 22, 0, 20)
-        stuckButton.Position = UDim2.new(1, -70, 0, 2)
-        stuckButton.BackgroundTransparency = 1
-        stuckButton.Text = "stuck"
-        stuckButton.TextColor3 = Color3.new(1, 1, 1)
-        stuckButton.Font = Enum.Font.SourceSansBold
-        stuckButton.TextSize = 14
-        stuckButton.TextScaled = true
-        stuckButton.Parent = container
-        
-        stuckButton.MouseButton1Click:Connect(function()
-            if currentEmote == em and currentAnimationTrack then
-                isStuck = not isStuck
-                stuckButton.Text = isStuck and "unstuck" or "stuck"
-                
-                if not isStuck then
+            fastButton.MouseButton1Click:Connect(function()
+                if currentEmote == em and currentAnimationTrack then
+                    em.isCurrentlyFast = not em.isCurrentlyFast
                     currentAnimationTrack:AdjustSpeed(em.isCurrentlyFast and 3 or 1)
+					
+                    fastButton.Text = em.isCurrentlyFast and "default" or "fast"
+					fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
                 end
-            end
-        end)
+            end)
+            
+            local stuckButton = Instance.new("TextButton")
+            stuckButton.Name = "stuckButton"
+            stuckButton.Size = UDim2.new(0, 22, 0, 20)
+            stuckButton.Position = UDim2.new(1, -70, 0, 2)
+            stuckButton.BackgroundTransparency = 1
+            stuckButton.Text = "stuck"
+            stuckButton.TextColor3 = Color3.new(1, 1, 1)
+            stuckButton.Font = Enum.Font.SourceSansBold
+            stuckButton.TextSize = 14
+            stuckButton.TextScaled = true
+            stuckButton.Parent = container
+            
+            stuckButton.MouseButton1Click:Connect(function()
+                if currentEmote == em and currentAnimationTrack then
+                    isStuck = not isStuck
+                    stuckButton.Text = isStuck and "unstuck" or "stuck"
+                end
+            end)
+        end
 
         local editButton = Instance.new("TextButton")
         editButton.Size = UDim2.new(0, 20, 0, 20)
@@ -1385,7 +1428,6 @@ function refresh()
         dateLbl.TextSize = 10
         dateLbl.TextScaled = true
         dateLbl.Parent = container
-        
     end
 
     scroll.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
@@ -1394,8 +1436,23 @@ end
 
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     searchText = searchBox.Text
+    currentPage = 1
     refresh()
 end)
 
+prevButton.MouseButton1Click:Connect(function()
+    if currentPage > 1 then
+        currentPage = currentPage - 1
+        refresh()
+    end
+end)
+
+nextButton.MouseButton1Click:Connect(function()
+    local totalPages = math.max(1, math.ceil(#filteredAndSortedEmotes / itemsPerPage))
+    if currentPage < totalPages then
+        currentPage = currentPage + 1
+        refresh()
+    end
+end)
 
 refresh()
