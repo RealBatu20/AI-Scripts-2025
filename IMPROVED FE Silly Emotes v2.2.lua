@@ -18,7 +18,7 @@ local originalJumpPower = 50
 
 --// Pagination variables
 local currentPage = 1
-local itemsPerPage = 28
+local itemsPerPage = 31
 local filteredAndSortedEmotes = {}
 
 function refresh()
