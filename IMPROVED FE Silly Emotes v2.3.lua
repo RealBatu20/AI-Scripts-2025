@@ -18,7 +18,7 @@ local originalJumpPower = 50
 
 --// Pagination variables
 local currentPage = 1
-local itemsPerPage = 31
+local itemsPerPage = 28
 local filteredAndSortedEmotes = {}
 
 function refresh()
@@ -428,15 +428,40 @@ local EMOTES_FILE = "emotes.json"
 
 
 local function saveEmotes()
-    local success, json = pcall(function()
-        return HttpService:JSONEncode(emotes)
+    local emoteJsonObjects = {}
+    
+    local keyOrder = {"cr", "ugc", "isAnimation", "price", "id", "fav", "imageId", "n", "added"}
+
+    for _, emoteData in ipairs(emotes) do
+        local orderedEmote = {}
+        for _, key in ipairs(keyOrder) do
+            orderedEmote[key] = emoteData[key]
+        end
+        
+        local success, jsonString = pcall(function()
+            return HttpService:JSONEncode(orderedEmote)
+        end)
+        
+        if success then
+            table.insert(emoteJsonObjects, "    " .. jsonString)
+        end
+    end
+    
+    local finalJson = "[\n" .. table.concat(emoteJsonObjects, ",\n") .. "\n]"
+    
+    local success, err = pcall(function()
+        writefile(EMOTES_FILE, finalJson)
     end)
     
-    if success then
-        writefile(EMOTES_FILE, json)
-        return true
+    if not success then
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "File Creation Failed";
+            Text = "Could not write to emotes.json. Reason: " .. tostring(err);
+            Duration = 10;
+        })
     end
-    return false
+    
+    return success
 end
 
 
@@ -493,10 +518,10 @@ topBar.Parent = main
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0, 80, 1, 0)
 title.BackgroundTransparency = 1
-title.Text = "  Emotes v2.2"
+title.Text = "  Emotes v2.3"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.SourceSansBold
-title.TextSize = 14
+title.TextSize = 18
 title.TextScaled = true
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Position = UDim2.new(0, 5, 0, 0)
@@ -504,8 +529,9 @@ title.Parent = topBar
 
 
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(0, 190, 0, 24) -- Resized to fit the new button
-searchBox.Position = UDim2.new(0, 90, 0.5, -12)
+searchBox.Size = UDim2.new(0, 190, 0, 24)
+searchBox.AnchorPoint = Vector2.new(0.5, 0.5) --// This line is new
+searchBox.Position = UDim2.new(0.5, 0, 0.5, 0) --// This line is modified
 searchBox.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 searchBox.TextColor3 = Color3.new(1, 1, 1)
 searchBox.PlaceholderText = "Search..."
@@ -625,7 +651,7 @@ local function makeBtn(txt, callback)
 end
 
 
-local sortModes = {"New", "Old", "Expensive", "Cheap", "A-Z", "Z-A"}
+local sortModes = {"Newest", "New", "Old", "Expensive", "Cheap", "A-Z", "Z-A"}
 local sortIndex = 1
 local ugcOnly = nil
 local searchText = ""
@@ -859,6 +885,23 @@ local function openEditUI(emote)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Position = UDim2.new(0, 10, 0, 0)
     titleLabel.Parent = titleBar
+
+    local newestLabel = Instance.new("TextLabel")
+    newestLabel.Size = UDim2.new(0, 80, 1, 0)
+    newestLabel.Position = UDim2.new(0, 210, 0, 0)
+    newestLabel.BackgroundTransparency = 1
+    newestLabel.Text = "(Newest)"
+    newestLabel.TextColor3 = Color3.fromRGB(120, 255, 120)
+    newestLabel.Font = Enum.Font.SourceSansItalic
+    newestLabel.TextSize = 16
+    newestLabel.TextScaled = true
+    newestLabel.TextXAlignment = Enum.TextXAlignment.Left
+    newestLabel.Parent = titleBar
+    newestLabel.Visible = false
+
+    if emote.added and (os.time() - emote.added < 10800) then
+        newestLabel.Visible = true
+    end
     
     local editMinButton = Instance.new("TextButton")
     editMinButton.Size = UDim2.new(0, 30, 0, 30)
@@ -914,7 +957,6 @@ local function openEditUI(emote)
         previewImage.Image = "rbxthumb://type=Asset&id=".. emote.id .."&w=420&h=420"
     end
     
-    
     previewImage.Parent = imageContainer
     
     local previewLabel = Instance.new("TextLabel")
@@ -936,64 +978,104 @@ local function openEditUI(emote)
     
     local yPos = 10
     
-    local function addField(label, value, isNumeric)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 30)
-    frame.Position = UDim2.new(0, 0, 0, yPos)
-    frame.BackgroundTransparency = 1
-    frame.Parent = settingsFrame
-    
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(0.4, 0, 1, 0)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = label
-    lbl.TextColor3 = Color3.new(1, 1, 1)
-    lbl.Font = Enum.Font.SourceSans
-    lbl.TextSize = 14
-    lbl.TextScaled = true
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = frame
-    
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(0.6, 0, 1, 0)
-    box.Position = UDim2.new(0.4, 0, 0, 0)
-    box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    box.TextColor3 = Color3.new(1, 1, 1)
-    box.Text = tostring(value)
-    box.Font = Enum.Font.SourceSans
-    box.TextSize = 14
-    box.TextScaled = true
-    box.ClearTextOnFocus = false --// This line has been added
-    box.Parent = frame
-    
-    if isNumeric then
-        box:GetPropertyChangedSignal("Text"):Connect(function()
-            if not tonumber(box.Text) then
-                box.Text = box.Text:gsub("%D", "")
-            end
-        end)
+    local function addEditableField(label, value, isNumeric)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 0, 30)
+        frame.Position = UDim2.new(0, 0, 0, yPos)
+        frame.BackgroundTransparency = 1
+        frame.Parent = settingsFrame
+        
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(0.4, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = label
+        lbl.TextColor3 = Color3.new(1, 1, 1)
+        lbl.Font = Enum.Font.SourceSans
+        lbl.TextSize = 14
+        lbl.TextScaled = true
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = frame
+        
+        local box = Instance.new("TextBox")
+        box.Size = UDim2.new(0.6, 0, 1, 0)
+        box.Position = UDim2.new(0.4, 0, 0, 0)
+        box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        box.TextColor3 = Color3.new(1, 1, 1)
+        box.Text = tostring(value)
+        box.Font = Enum.Font.SourceSans
+        box.TextSize = 14
+        box.TextScaled = true
+        box.ClearTextOnFocus = false
+        box.Parent = frame
+        
+        if isNumeric then
+            box:GetPropertyChangedSignal("Text"):Connect(function()
+                if not tonumber(box.Text) then
+                    box.Text = box.Text:gsub("%D", "")
+                end
+            end)
+        end
+        
+        yPos += 35
+        return box
     end
     
-    yPos += 35
-    return box
-end
+    local function addDisplayField(label, value)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 0, 30)
+        frame.Position = UDim2.new(0, 0, 0, yPos)
+        frame.BackgroundTransparency = 1
+        frame.Parent = settingsFrame
+        
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(0.4, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = label
+        lbl.TextColor3 = Color3.new(1, 1, 1)
+        lbl.Font = Enum.Font.SourceSans
+        lbl.TextSize = 14
+        lbl.TextScaled = true
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+        lbl.Parent = frame
+        
+        local box = Instance.new("TextLabel")
+        box.Size = UDim2.new(0.6, 0, 1, 0)
+        box.Position = UDim2.new(0.4, 0, 0, 0)
+        box.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        box.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+        box.Text = tostring(value)
+        box.Font = Enum.Font.SourceSans
+        box.TextSize = 14
+        box.TextScaled = true
+        box.TextXAlignment = Enum.TextXAlignment.Left
+        box.Selectable = true
+        box.Parent = frame
+        
+        yPos += 35
+        return box
+    end
     
-    local nameBox = addField("Name:", emote.n)
-    local idBox = addField("ID:", emote.id)
-    local priceBox = addField("Price:", emote.price, true)
-    local imageBox = addField("Image ID:", emote.imageId or emote.id)
-    local dateBox = addField("Date:", emote.cr)
+    local nameBox = addEditableField("Name:", emote.n)
+    local idBox = addEditableField("ID:", emote.id, true)
+    local priceBox = addEditableField("Price:", emote.price, true)
+    local imageBox = addEditableField("Image ID:", emote.imageId or emote.id, true)
+    local dateBox = addEditableField("Date:", emote.cr)
+
+    if emote.added then
+        local addedDate = os.date("%b %d, %Y", emote.added)
+        addDisplayField("Added:", addedDate)
+    end
     
+    nameBox:GetPropertyChangedSignal("Text"):Connect(function()
+        previewLabel.Text = nameBox.Text
+        titleLabel.Text = "Edit Emote: " .. nameBox.Text
+    end)
+
     imageBox.FocusLost:Connect(function()
         local newId = tonumber(imageBox.Text)
         if newId then
             previewImage.Image = "rbxthumb://type=Asset&id="..newId.."&w=420&h=420"
-            previewLabel.Text = nameBox.Text
         end
-    end)
-    
-    nameBox:GetPropertyChangedSignal("Text"):Connect(function()
-        previewLabel.Text = nameBox.Text
     end)
     
     local animFrame = Instance.new("Frame")
@@ -1080,11 +1162,28 @@ end
     saveBtn.Parent = settingsFrame
     
     saveBtn.MouseButton1Click:Connect(function()
+        local newId = tonumber(idBox.Text)
+        if not newId or newId == 0 then
+            game.StarterGui:SetCore("SendNotification", { Title = "Invalid ID", Text = "The emote ID cannot be 0 or empty.", Duration = 5 })
+            return
+        end
+
+        for _, existingEmote in ipairs(emotes) do
+            if existingEmote.id == newId and existingEmote ~= emote then
+                game.StarterGui:SetCore("SendNotification", { Title = "Duplicate ID Found", Text = "An emote with the ID (" .. tostring(newId) .. ") already exists.", Duration = 5 })
+                return
+            end
+        end
+
         emote.n = nameBox.Text
-        emote.id = tonumber(idBox.Text) or emote.id
-        emote.price = tonumber(priceBox.Text) or emote.price
-        emote.imageId = tonumber(imageBox.Text) or emote.imageId or emote.id
+        emote.id = newId
+        emote.price = tonumber(priceBox.Text) or 0
+        emote.imageId = tonumber(imageBox.Text) or newId
         emote.cr = dateBox.Text
+        
+        if currentEmote == emote then
+            stopCurrentAnimation()
+        end
         
         saveEmotes()
         
@@ -1109,6 +1208,9 @@ end
             "ARE YOU SURE YOU WANT TO PERMANENTLY DELETE THIS EMOTE?",
             "THIS CANNOT BE UNDONE!",
             function()
+                if currentEmote == emote then
+                    stopCurrentAnimation()
+                end
                 for i, e in ipairs(emotes) do
                     if e == emote then
                         table.remove(emotes, i)
@@ -1146,17 +1248,13 @@ end
     end)
 end
 
---// MODIFIED RunService.Heartbeat Connection for movable stuck state
 RunService.Heartbeat:Connect(function()
     if not player.Character then return end
     local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
 
     if isStuck and currentAnimationTrack then
-        -- Animation is stuck, but player can move. We do nothing here to override movement.
-        -- The animation speed is set to 0 when 'stuck' is clicked.
     elseif not isStuck and currentAnimationTrack then
-        -- If not stuck, use the original logic to stop the animation on movement.
         if humanoid.MoveDirection.Magnitude > 0 or humanoid:GetState() == Enum.HumanoidStateType.Jumping then
             stopCurrentAnimation()
         end
@@ -1172,7 +1270,8 @@ local function createPlaceholderEmote()
         ugc = true,
         fav = false,
         isAnimation = false,
-        imageId = 0
+        imageId = 0,
+        added = os.time() --// This new line adds the creation timestamp
     }
     table.insert(emotes, 1, newEmote)
     saveEmotes()
@@ -1208,7 +1307,6 @@ function refresh()
         end
     end
     
-    -- Update button text
     sortBtn.Text = "Sort: "..sortModes[sortIndex]
     if ugcOnly == nil then
         ugcBtn.Text = "All"
@@ -1218,7 +1316,6 @@ function refresh()
         ugcBtn.Text = "Roblox"
     end
 
-    -- Step 1: Filter and Sort the entire list once
     filteredAndSortedEmotes = {}
     local searchLower = string.lower(searchText)
     for _, emote in ipairs(emotes) do
@@ -1227,32 +1324,46 @@ function refresh()
         end
     end
     
+    -- This robust date parser handles potential errors gracefully.
+    local function parseDate(dateStr)
+        if not dateStr or type(dateStr) ~= "string" then return 0 end
+        local success, result = pcall(function()
+            local monthStr, day, year = dateStr:match("(%a+) (%d+), (%d+)")
+            if not (monthStr and day and year) then return 0 end
+            local months = {Jan=1,Feb=2,Mar=3,Apr=4,May=5,Jun=6,Jul=7,Aug=8,Sep=9,Oct=10,Nov=11,Dec=12}
+            local monthNum = months[monthStr]
+            if not monthNum then return 0 end
+            return os.time({year = tonumber(year), month = monthNum, day = tonumber(day)})
+        end)
+        return (success and result) or 0
+    end
+    
     local mode = sortModes[sortIndex]
     table.sort(filteredAndSortedEmotes, function(a, b)
-        if a.fav and not b.fav then return true end
-        if not a.fav and b.fav then return false end
-        if mode == "A-Z" then return a.n < b.n end
-        if mode == "Z-A" then return a.n > b.n end
-        if mode == "Expensive" then return a.price > b.price end
-        if mode == "Cheap" then return a.price < b.price end
-        if mode == "New" then
-            local function parseDate(dateStr)
-                local m,d,y = dateStr:match("(%a+) (%d+), (%d+)")
-                return os.time({year=tonumber(y), month=({Jan=1,Feb=2,Mar=3,Apr=4,May=5,Jun=6,Jul=7,Aug=8,Sep=9,Oct=10,Nov=11,Dec=12})[m], day=tonumber(d)})
-            end
-            return (a.cr and parseDate(a.cr) or 0) > (b.cr and parseDate(b.cr) or 0)
+    if a.fav and not b.fav then return true end
+    if not a.fav and b.fav then return false end
+
+    if mode == "Newest" then
+        local a_is_new = a.added ~= nil
+        local b_is_new = b.added ~= nil
+        if a_is_new and not b_is_new then return true end
+        if not a_is_new and b_is_new then return false end
+        if a_is_new and b_is_new then
+            return a.added > b.added
         end
-        if mode == "Old" then
-            local function parseDate(dateStr)
-                local m,d,y = dateStr:match("(%a+) (%d+), (%d+)")
-                return os.time({year=tonumber(y), month=({Jan=1,Feb=2,Mar=3,Apr=4,May=5,Jun=6,Jul=7,Aug=8,Sep=9,Oct=10,Nov=11,Dec=12})[m], day=tonumber(d)})
-            end
-            return (a.cr and parseDate(a.cr) or 0) < (b.cr and parseDate(b.cr) or 0)
-        end
-        return false
-    end)
+        return parseDate(a.cr) > parseDate(b.cr)
+    end
     
-    -- Step 2: Pagination Logic
+    if mode == "A-Z" then return a.n < b.n end
+    if mode == "Z-A" then return a.n > b.n end
+    if mode == "Expensive" then return a.price > b.price end
+    if mode == "Cheap" then return a.price < b.price end
+    if mode == "New" then return parseDate(a.cr) > parseDate(b.cr) end
+    if mode == "Old" then return parseDate(a.cr) < parseDate(b.cr) end
+    
+    return false
+end)
+    
     local totalPages = math.max(1, math.ceil(#filteredAndSortedEmotes / itemsPerPage))
     currentPage = math.clamp(currentPage, 1, totalPages)
     
@@ -1263,7 +1374,6 @@ function refresh()
     local startIndex = (currentPage - 1) * itemsPerPage + 1
     local endIndex = math.min(startIndex + itemsPerPage - 1, #filteredAndSortedEmotes)
     
-    -- Step 3: Create GUI elements for the current page ONLY
     for i = startIndex, endIndex do
         local em = filteredAndSortedEmotes[i]
         
@@ -1312,7 +1422,6 @@ function refresh()
             end
         end)
 
-        --// Conditional button creation
         if em.isAnimation then
             local fastButton = Instance.new("TextButton")
             fastButton.Name = "fastButton"
@@ -1331,7 +1440,6 @@ function refresh()
                 if currentEmote == em and currentAnimationTrack then
                     em.isCurrentlyFast = not em.isCurrentlyFast
                     currentAnimationTrack:AdjustSpeed(em.isCurrentlyFast and 3 or 1)
-					
                     fastButton.Text = em.isCurrentlyFast and "default" or "fast"
 					fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
                 end
@@ -1406,21 +1514,44 @@ function refresh()
             animIndicator.Parent = container
         end
 
-        local lbl = Instance.new("TextLabel")
-        lbl.Size = UDim2.new(1, -4, 0, 35)
-        lbl.Position = UDim2.new(0, 2, 0, 105)
-        lbl.BackgroundTransparency = 1
-        lbl.Text = em.n.."\n"..em.price.."R$"
-        lbl.TextColor3 = Color3.new(1, 1, 1)
-        lbl.TextSize = 12
-        lbl.Font = Enum.Font.SourceSansBold
-        lbl.TextScaled = true
-        lbl.TextWrapped = true
-        lbl.Parent = container
+        local lbl1 = Instance.new("TextLabel")
+		lbl1.Size = UDim2.new(1, -4, 0, 20)
+		lbl1.Position = UDim2.new(0, 2, 0, 87)
+		lbl1.BackgroundTransparency = 1
+		lbl1.Text = em.n
+		lbl1.TextColor3 = Color3.new(1, 1, 1)
+		lbl1.TextSize = 13
+		lbl1.Font = Enum.Font.SourceSansBold
+		lbl1.TextScaled = true
+		lbl1.TextWrapped = true
+		lbl1.Parent = container
+		
+		local lbl1Stroke = Instance.new("UIStroke")
+		lbl1Stroke.Color = Color3.fromRGB(0, 0, 0)
+		lbl1Stroke.Thickness = 0.5
+		lbl1Stroke.Parent = lbl1
+
+		-- Label 2: Emote Price (Positioned below the name)
+		local lbl2 = Instance.new("TextLabel")
+		lbl2.Size = UDim2.new(1, -4, 0, 15)
+		lbl2.Position = UDim2.new(0, 2, 0, 118)
+		lbl2.BackgroundTransparency = 1
+		lbl2.Text = em.price.."R$"
+		lbl2.TextColor3 = Color3.new(1, 1, 1)
+		lbl2.TextSize = 8
+		lbl2.Font = Enum.Font.SourceSansBold
+		lbl2.TextScaled = true
+		lbl2.TextWrapped = true
+		lbl2.Parent = container
+		
+		local lbl1Stroke = Instance.new("UIStroke")
+		lbl1Stroke.Color = Color3.fromRGB(0, 0, 0)
+		lbl1Stroke.Thickness = 0.5
+		lbl1Stroke.Parent = lbl2
         
         local dateLbl = Instance.new("TextLabel")
         dateLbl.Size = UDim2.new(1, -4, 0, 15)
-        dateLbl.Position = UDim2.new(0, 2, 1, -17)
+        dateLbl.Position = UDim2.new(0, 2, 1, -26)
         dateLbl.BackgroundTransparency = 1
         dateLbl.Text = em.cr or "Unknown"
         dateLbl.TextColor3 = Color3.new(0.7, 0.7, 0.7)
