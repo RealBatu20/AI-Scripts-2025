@@ -539,7 +539,6 @@ searchBox.PlaceholderColor3 = Color3.new(0.7, 0.7, 0.7)
 searchBox.Font = Enum.Font.SourceSans
 searchBox.TextSize = 14
 searchBox.Text = ""
-searchBox.ClearTextOnFocus = false
 searchBox.Parent = topBar
 
 local minButton = Instance.new("TextButton")
