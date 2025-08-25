@@ -18,7 +18,7 @@ local originalJumpPower = 50
 
 --// Pagination variables
 local currentPage = 1
-local itemsPerPage = 28
+local itemsPerPage = 35
 local filteredAndSortedEmotes = {}
 
 function refresh()
@@ -430,7 +430,7 @@ local EMOTES_FILE = "emotes.json"
 local function saveEmotes()
     local emoteJsonObjects = {}
     
-    local keyOrder = {"cr", "ugc", "isAnimation", "price", "id", "fav", "imageId", "n", "added"}
+    local keyOrder = {"cr", "ugc", "isAnimation", "price", "id", "fav", "imageId", "n", "added", "spammable"}
 
     for _, emoteData in ipairs(emotes) do
         local orderedEmote = {}
@@ -518,7 +518,7 @@ topBar.Parent = main
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0, 80, 1, 0)
 title.BackgroundTransparency = 1
-title.Text = "  Emotes v2.3"
+title.Text = "  Emotes v2.4"
 title.TextColor3 = Color3.new(1, 1, 1)
 title.Font = Enum.Font.SourceSansBold
 title.TextSize = 18
@@ -726,16 +726,19 @@ local function stopCurrentAnimation()
     currentEmote = nil
 end
 
-local function playAnimation(emote, button)
-    stopCurrentAnimation()
-
-    currentPlayButton = button
-    currentEmote = emote
-    currentEmote.isCurrentlyFast = currentEmote.isCurrentlyFast or false
+local function playAnimation(emote, button, isSpamClick)
+    -- If it's not a spam click, it follows the normal "stop previous" logic.
+    if not isSpamClick then
+        stopCurrentAnimation()
+    end
 
     local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
     
+    -- Set these properties regardless of spam or not.
+    currentPlayButton = button
+    currentEmote = emote
+    currentEmote.isCurrentlyFast = currentEmote.isCurrentlyFast or false
     originalWalkSpeed = humanoid.WalkSpeed
     originalJumpPower = humanoid.JumpPower
 
@@ -749,10 +752,49 @@ local function playAnimation(emote, button)
         currentAnimationTrack = humanoid:PlayEmoteAndGetAnimTrackById(emote.id)
     end
     
-    currentAnimationTrack:AdjustSpeed(currentEmote.isCurrentlyFast and 3 or 1)
-    
-    currentPlayButton.Text = "stop"
-    currentPlayButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+    if currentAnimationTrack then
+        if not emote.isAnimation then -- Only add the Stopped event for non-looping emotes
+            currentAnimationTrack.Stopped:Once(function()
+                if currentEmote == emote then
+                    stopCurrentAnimation()
+                end
+            end)
+        end
+
+        currentAnimationTrack:AdjustSpeed(currentEmote.isCurrentlyFast and 3 or 1)
+        
+        -- Only change the button to "stop" if it's NOT spammable.
+        if not isSpamClick then
+            currentPlayButton.Text = "stop"
+            currentPlayButton.TextColor3 = Color3.fromRGB(255, 80, 80) -- Red
+        end
+    else
+        stopCurrentAnimation()
+    end
+end
+
+local function playEmoteOnce(emote)
+    -- This function is specifically for non-spammable emotes.
+    stopCurrentAnimation() -- Clear any previous state first.
+
+    currentEmote = emote
+    local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+
+    currentAnimationTrack = humanoid:PlayEmoteAndGetAnimTrackById(emote.id)
+
+    -- If the emote track loaded successfully, listen for when it stops.
+    if currentAnimationTrack then
+        currentAnimationTrack.Stopped:Once(function()
+            -- Only clear the state if this is still the active emote.
+            if currentEmote == emote then
+                stopCurrentAnimation()
+            end
+        end)
+    else
+        -- If it failed to play, clear the state immediately.
+        currentEmote = nil
+    end
 end
 
 local function createConfirmation(title, message, beg, callback)
@@ -1148,6 +1190,46 @@ local function openEditUI(emote)
         ugcToggle.BackgroundColor3 = emote.ugc and Color3.new(0, 0.5, 0) or Color3.new(0.5, 0, 0)
     end)
     
+	yPos += 35
+    
+    local spammableFrame = Instance.new("Frame")
+    spammableFrame.Size = UDim2.new(1, 0, 0, 30)
+    spammableFrame.Position = UDim2.new(0, 0, 0, yPos)
+    spammableFrame.BackgroundTransparency = 1
+    spammableFrame.Parent = settingsFrame
+    
+    local spammableLbl = Instance.new("TextLabel")
+    spammableLbl.Size = UDim2.new(0.4, 0, 1, 0)
+    spammableLbl.BackgroundTransparency = 1
+    spammableLbl.Text = "Spammable:"
+    spammableLbl.TextColor3 = Color3.new(1, 1, 1)
+    spammableLbl.Font = Enum.Font.SourceSans
+    spammableLbl.TextSize = 14
+    spammableLbl.TextScaled = true
+    spammableLbl.TextXAlignment = Enum.TextXAlignment.Left
+    spammableLbl.Parent = spammableFrame
+    
+    local spammableToggle = Instance.new("TextButton")
+    spammableToggle.Size = UDim2.new(0.2, 0, 0.8, 0)
+    spammableToggle.Position = UDim2.new(0.4, 0, 0.1, 0)
+    
+    -- Ensure the property exists before trying to read it
+    emote.spammable = emote.spammable or false 
+    
+    spammableToggle.BackgroundColor3 = emote.spammable and Color3.new(0, 0.5, 0) or Color3.new(0.5, 0, 0)
+    spammableToggle.Text = emote.spammable and "YES" or "NO"
+    spammableToggle.TextColor3 = Color3.new(1, 1, 1)
+    spammableToggle.Font = Enum.Font.SourceSansBold
+    spammableToggle.TextSize = 14
+    spammableToggle.TextScaled = true
+    spammableToggle.Parent = spammableFrame
+    
+    spammableToggle.MouseButton1Click:Connect(function()
+        emote.spammable = not emote.spammable
+        spammableToggle.Text = emote.spammable and "YES" or "NO"
+        spammableToggle.BackgroundColor3 = emote.spammable and Color3.new(0, 0.5, 0) or Color3.new(0.5, 0, 0)
+    end)
+	
     yPos += 40
     
     local saveBtn = Instance.new("TextButton")
@@ -1271,7 +1353,8 @@ local function createPlaceholderEmote()
         fav = false,
         isAnimation = false,
         imageId = 0,
-        added = os.time() --// This new line adds the creation timestamp
+        added = os.time(),
+        spammable = false --// This line is new
     }
     table.insert(emotes, 1, newEmote)
     saveEmotes()
@@ -1404,66 +1487,106 @@ end)
         end)
 
         local playButton = Instance.new("TextButton")
-        playButton.Size = UDim2.new(0, 20, 0, 20)
-        playButton.Position = UDim2.new(1, -22, 0, 2)
-        playButton.BackgroundTransparency = 1
-        playButton.Text = "play"
-        playButton.TextColor3 = Color3.new(0, 1, 0)
-        playButton.Font = Enum.Font.SourceSansBold
-        playButton.TextSize = 14
-        playButton.TextScaled = true
-        playButton.Parent = container
-        
-        playButton.MouseButton1Click:Connect(function()
+playButton.Size = UDim2.new(0, 20, 0, 20)
+playButton.Position = UDim2.new(1, -22, 0, 2)
+playButton.BackgroundTransparency = 1
+playButton.Text = "play"
+playButton.TextColor3 = Color3.new(0, 1, 0)
+playButton.Font = Enum.Font.SourceSansBold
+playButton.TextSize = 14
+playButton.TextScaled = true
+playButton.Parent = container
+
+--// Conditional Logic: Animations get the full feature set, Emotes get a simpler setup.
+if em.isAnimation then
+    -- LOGIC FOR ANIMATIONS (play/stop toggle, spammable, fast, stuck)
+    playButton.MouseButton1Click:Connect(function()
+        em.spammable = em.spammable or false
+        if em.spammable then
+            playAnimation(em, playButton, true)
+        else
             if currentPlayButton == playButton then
                 stopCurrentAnimation()
             else
-                playAnimation(em, playButton)
+                playAnimation(em, playButton, false)
             end
-        end)
+        end
+    end)
+    
+    local fastButton = Instance.new("TextButton")
+    fastButton.Name = "fastButton"
+    fastButton.Size = UDim2.new(0, 22, 0, 20)
+    fastButton.Position = UDim2.new(1, -46, 0, 2)
+    fastButton.BackgroundTransparency = 1
+    em.isCurrentlyFast = em.isCurrentlyFast or false
+    fastButton.Text = em.isCurrentlyFast and "default" or "fast"
+    fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
+    fastButton.Font = Enum.Font.SourceSansBold
+    fastButton.TextSize = 14
+    fastButton.TextScaled = true
+    fastButton.Parent = container
 
-        if em.isAnimation then
-            local fastButton = Instance.new("TextButton")
-            fastButton.Name = "fastButton"
-            fastButton.Size = UDim2.new(0, 22, 0, 20)
-            fastButton.Position = UDim2.new(1, -46, 0, 2)
-            fastButton.BackgroundTransparency = 1
-            em.isCurrentlyFast = em.isCurrentlyFast or false
+    fastButton.MouseButton1Click:Connect(function()
+        if currentEmote == em and currentAnimationTrack then
+            em.isCurrentlyFast = not em.isCurrentlyFast
+            currentAnimationTrack:AdjustSpeed(em.isCurrentlyFast and 3 or 1)
             fastButton.Text = em.isCurrentlyFast and "default" or "fast"
             fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
-            fastButton.Font = Enum.Font.SourceSansBold
-            fastButton.TextSize = 14
-            fastButton.TextScaled = true
-            fastButton.Parent = container
-
-            fastButton.MouseButton1Click:Connect(function()
-                if currentEmote == em and currentAnimationTrack then
-                    em.isCurrentlyFast = not em.isCurrentlyFast
-                    currentAnimationTrack:AdjustSpeed(em.isCurrentlyFast and 3 or 1)
-                    fastButton.Text = em.isCurrentlyFast and "default" or "fast"
-					fastButton.TextColor3 = em.isCurrentlyFast and Color3.fromRGB(255, 80, 80) or Color3.fromRGB(255, 255, 0)
-                end
-            end)
-            
-            local stuckButton = Instance.new("TextButton")
-            stuckButton.Name = "stuckButton"
-            stuckButton.Size = UDim2.new(0, 22, 0, 20)
-            stuckButton.Position = UDim2.new(1, -70, 0, 2)
-            stuckButton.BackgroundTransparency = 1
-            stuckButton.Text = "stuck"
-            stuckButton.TextColor3 = Color3.new(1, 1, 1)
-            stuckButton.Font = Enum.Font.SourceSansBold
-            stuckButton.TextSize = 14
-            stuckButton.TextScaled = true
-            stuckButton.Parent = container
-            
-            stuckButton.MouseButton1Click:Connect(function()
-                if currentEmote == em and currentAnimationTrack then
-                    isStuck = not isStuck
-                    stuckButton.Text = isStuck and "unstuck" or "stuck"
-                end
-            end)
         end
+    end)
+    
+    local stuckButton = Instance.new("TextButton")
+    stuckButton.Name = "stuckButton"
+    stuckButton.Size = UDim2.new(0, 22, 0, 20)
+    stuckButton.Position = UDim2.new(1, -70, 0, 2)
+    stuckButton.BackgroundTransparency = 1
+    stuckButton.Text = "stuck"
+    stuckButton.TextColor3 = Color3.new(1, 1, 1)
+    stuckButton.Font = Enum.Font.SourceSansBold
+    stuckButton.TextSize = 14
+    stuckButton.TextScaled = true
+    stuckButton.Parent = container
+    
+    stuckButton.MouseButton1Click:Connect(function()
+        if currentEmote == em and currentAnimationTrack then
+            isStuck = not isStuck
+            stuckButton.Text = isStuck and "unstuck" or "stuck"
+        end
+    end)
+
+else
+    playButton.MouseButton1Click:Connect(function()
+    em.spammable = em.spammable or false
+
+    if em.spammable then
+        local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:PlayEmoteAndGetAnimTrackById(em.id)
+        end
+    else
+        if currentEmote ~= em then
+            playEmoteOnce(em)
+        end
+    end
+end)
+
+    -- The dedicated stop button remains the same.
+    local stopButton = Instance.new("TextButton")
+    stopButton.Name = "stopButton"
+    stopButton.Size = UDim2.new(0, 22, 0, 20)
+    stopButton.Position = UDim2.new(1, -46, 0, 2)
+    stopButton.BackgroundTransparency = 1
+    stopButton.Text = "stop"
+    stopButton.TextColor3 = Color3.fromRGB(255, 80, 80)
+    stopButton.Font = Enum.Font.SourceSansBold
+    stopButton.TextSize = 14
+    stopButton.TextScaled = true
+    stopButton.Parent = container
+
+    stopButton.MouseButton1Click:Connect(function()
+        stopCurrentAnimation()
+    end)
+end
 
         local editButton = Instance.new("TextButton")
         editButton.Size = UDim2.new(0, 20, 0, 20)
