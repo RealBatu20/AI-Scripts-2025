@@ -31,9 +31,8 @@ screenGui.Name = "FlyGuiV8"
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = true -- Ensures consistent positioning
+screenGui.IgnoreGuiInset = true
 
---// ADDED: UIScale for resolution independence
 local uiScale = Instance.new("UIScale", screenGui)
 
 local mainFrame = Instance.new("Frame")
@@ -148,9 +147,7 @@ makeDraggable(mainFrame, headerFrame)
 local function NoclipLoop()
     if character ~= nil then
         for _, child in pairs(character:GetDescendants()) do
-            if child:IsA("BasePart") and child.CanCollide == true then
-                child.CanCollide = false
-            end
+            if child:IsA("BasePart") and child.CanCollide == true then child.CanCollide = false end
         end
     end
 end
@@ -245,8 +242,7 @@ end)
 
 --// GUI Interactions
 closeButton.MouseButton1Click:Connect(function()
-    _G.FlyGuiV8Loaded = false
-    screenGui:Destroy()
+    _G.FlyGuiV8Loaded = false; screenGui:Destroy()
 end)
 flyButton.MouseButton1Click:Connect(function() setFlying(not isFlyToggledOn) end)
 cframeToggle.MouseButton1Click:Connect(function()
@@ -254,9 +250,16 @@ cframeToggle.MouseButton1Click:Connect(function()
     cframeToggle.TextColor3 = useCFrameFly and Color3.fromRGB(88, 101, 242) or Color3.fromRGB(255, 255, 255)
     cframeStroke.Color = useCFrameFly and Color3.fromRGB(88, 101, 242) or Color3.fromRGB(20, 20, 20)
 end)
+
+--// FIXED: Minimize button functionality
+local isMinimized = false
 minimizeButton.MouseButton1Click:Connect(function()
-    bodyFrame.Visible = not bodyFrame.Visible
+    isMinimized = not isMinimized
+    bodyFrame.Visible = not isMinimized
+    local targetSize = isMinimized and UDim2.new(0, 250, 0, 40) or UDim2.new(0, 250, 0, 170)
+    TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {Size = targetSize}):Play()
 end)
+
 transparencyBox.FocusLost:Connect(function(enterPressed)
     local num = tonumber(transparencyBox.Text)
     if num and num >= 0 and num <= 1 then flyTransparency = num
