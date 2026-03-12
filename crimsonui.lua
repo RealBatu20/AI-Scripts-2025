@@ -799,4 +799,4 @@ end
 
 return CrimsonUI
 
--- INSTALLATION: local UI = loadstring(game:HttpGet("YOUR_URL_HERE"))()
+-- INSTALLATION: local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/RealBatu20/AI-Scripts-2025/refs/heads/main/crimsonui.lua"))()
