@@ -415,169 +415,101 @@ function CrimsonUI:CreateWindow(options)
 			SelectThisTab()
 		end
 
-		-- API: Create Gradient Button (Visual Upgrade)
+		-- API: Elements
 function tab:CreateButton(options)
 	local btnName = options.Name or "Button"
 	local callback = options.Callback or function() end
-	local icon = options.Icon or "💎" -- Allow custom icon, default to diamond
 	
-	-- Random vibrant gradient generator (avoiding the predefined table approach)
-	local function GenerateRandomGradient(): (Color3, Color3)
-		local hue1 = math.random() -- Random hue 0-1
-		local hue2 = (hue1 + 0.05 + (math.random() * 0.15)) % 1 -- Slightly offset, warm shift
+	-- Generate random vibrant gradient colors
+	local function randomVibrantColor()
+		local hue = math.random() -- Random hue 0-1
 		local saturation = 0.7 + (math.random() * 0.3) -- 0.7-1.0 for vibrancy
 		local value = 0.8 + (math.random() * 0.2) -- 0.8-1.0 for brightness
-		
-		local startColor = Color3.fromHSV(hue1, saturation, value)
-		local endColor = Color3.fromHSV(hue2, saturation, value * 0.9) -- Slightly darker end
-		
-		return startColor, endColor
+		return Color3.fromHSV(hue, saturation, value)
 	end
 	
-	local gradStart, gradEnd = GenerateRandomGradient()
+	local startColor = randomVibrantColor()
+	local endColor = Color3.fromHSV(
+		(select(1, startColor:ToHSV()) + 0.05) % 1, -- Slight hue shift
+		math.clamp(select(2, startColor:ToHSV()) + (math.random() - 0.5) * 0.2, 0.5, 1),
+		math.clamp(select(3, startColor:ToHSV()) + (math.random() - 0.5) * 0.2, 0.6, 1)
+	)
 	
-	-- Main button frame
 	local btnFrame = Create("TextButton", {
 		Name = btnName,
 		Parent = tab.Container,
-		Size = UDim2.new(1, 0, 0, 48), -- Slightly taller for better presence
-		BackgroundColor3 = Color3.fromRGB(255, 255, 255), -- White base for gradient
+		Size = UDim2.new(1, 0, 0, 48),
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
 		Text = "",
 		AutoButtonColor = false,
 		ClipsDescendants = true
 	}, {
-		Create("UICorner", { CornerRadius = UDim.new(0, 10) }), -- Slightly more rounded
-		
-		-- Gradient background
+		Create("UICorner", { CornerRadius = UDim.new(0, 10) }),
+		-- Gradient background using UIGradient
 		Create("UIGradient", {
 			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, gradStart),
-				ColorSequenceKeypoint.new(1, gradEnd)
+				ColorSequenceKeypoint.new(0, startColor),
+				ColorSequenceKeypoint.new(1, endColor)
 			}),
-			Rotation = 90 -- Vertical gradient, start at top
+			Rotation = 0 -- Horizontal gradient left to right
 		}),
-		
-		-- Left accent bar (darker edge like in reference)
-		Create("Frame", {
-			Name = "LeftAccent",
-			Size = UDim2.new(0, 4, 1, 0),
-			Position = UDim2.new(0, 0, 0, 0),
-			BackgroundColor3 = gradStart:Lerp(Color3.new(0, 0, 0), 0.3), -- Darker version of start
-			BorderSizePixel = 0
-		}, {
-			Create("UICorner", { 
-				CornerRadius = UDim.new(0, 10) 
-			})
+		-- Left icon (diamond shape using text or you can use ImageLabel)
+		Create("TextLabel", {
+			Name = "Icon",
+			Position = UDim2.new(0, 15, 0.5, 0),
+			AnchorPoint = Vector2.new(0, 0.5),
+			Size = UDim2.new(0, 24, 0, 24),
+			BackgroundTransparency = 1,
+			Text = "◆", -- Diamond character, change to ImageLabel with asset if preferred
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			Font = Enum.Font.GothamBold,
+			TextSize = 18,
+			TextXAlignment = Enum.TextXAlignment.Center,
+			TextYAlignment = Enum.TextYAlignment.Center
 		}),
-		
-		-- Layout container for icon + text
-		Create("Frame", {
-			Name = "Content",
-			Size = UDim2.new(1, -20, 1, 0),
-			Position = UDim2.new(0, 12, 0, 0),
-			BackgroundTransparency = 1
-		}, {
-			Create("UIListLayout", {
-				FillDirection = Enum.FillDirection.Horizontal,
-				SortOrder = Enum.SortOrder.LayoutOrder,
-				VerticalAlignment = Enum.VerticalAlignment.Center,
-				Padding = UDim.new(0, 10)
-			}),
-			
-			-- Icon label
-			Create("TextLabel", {
-				Name = "Icon",
-				Size = UDim2.new(0, 24, 0, 24),
-				BackgroundTransparency = 1,
-				Text = icon,
-				TextSize = 20,
-				Font = Enum.Font.GothamBold,
-				TextColor3 = Color3.fromRGB(255, 255, 255),
-				LayoutOrder = 1
-			}),
-			
-			-- Text label
-			Create("TextLabel", {
-				Name = "Title",
-				Size = UDim2.new(1, -34, 0, 20),
-				BackgroundTransparency = 1,
-				Text = btnName,
-				TextColor3 = Color3.fromRGB(255, 255, 255),
-				Font = Enum.Font.GothamBold,
-				TextSize = 15,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				LayoutOrder = 2
-			})
-		}),
-		
-		-- Subtle shadow overlay at bottom for depth
-		Create("Frame", {
-			Name = "BottomShadow",
-			Size = UDim2.new(1, 0, 0, 2),
-			Position = UDim2.new(0, 0, 1, -2),
-			BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-			BackgroundTransparency = 0.7,
-			BorderSizePixel = 0
+		-- Text label
+		Create("TextLabel", {
+			Name = "Title",
+			Position = UDim2.new(0, 48, 0, 0),
+			Size = UDim2.new(1, -60, 1, 0),
+			BackgroundTransparency = 1,
+			Text = btnName,
+			TextColor3 = Color3.fromRGB(255, 255, 255),
+			Font = Enum.Font.GothamBold,
+			TextSize = 16,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextYAlignment = Enum.TextYAlignment.Center
 		})
 	})
 	
-	-- Fix left accent corners (mask bottom right to only show left edge)
-	local leftAccent = btnFrame:FindFirstChild("LeftAccent")
-	if leftAccent then
-		local fixFrame = Create("Frame", {
-			Parent = leftAccent,
-			Size = UDim2.new(1, 0, 1, 0),
-			Position = UDim2.new(0.5, 0, 0, 0),
-			BackgroundColor3 = gradStart:Lerp(Color3.new(0, 0, 0), 0.3),
-			BorderSizePixel = 0
-		})
-	end
-	
-	-- Hover effect: brighten gradient
+	-- Hover effect - brighten the gradient
 	local gradient = btnFrame:FindFirstChildOfClass("UIGradient")
-	local originalStart, originalEnd = gradStart, gradEnd
+	local originalColor = gradient.Color
 	
-	local function setupGradientHover(button: TextButton)
-		button.MouseEnter:Connect(function()
-			if gradient then
-				Tween(gradient, {
-					Color = ColorSequence.new({
-						ColorSequenceKeypoint.new(0, originalStart:Lerp(Color3.new(1,1,1), 0.15)),
-						ColorSequenceKeypoint.new(1, originalEnd:Lerp(Color3.new(1,1,1), 0.15))
-					})
-				}, 0.2)
-			end
-		end)
-		
-		button.MouseLeave:Connect(function()
-			if gradient then
-				Tween(gradient, {
-					Color = ColorSequence.new({
-						ColorSequenceKeypoint.new(0, originalStart),
-						ColorSequenceKeypoint.new(1, originalEnd)
-					})
-				}, 0.2)
-			end
-		end)
-	end
-	
-	setupGradientHover(btnFrame)
-	
-	-- Click animation: press down effect
-	btnFrame.MouseButton1Down:Connect(function()
-		Tween(btnFrame, {Size = UDim2.new(0.98, 0, 0, 46)}, 0.05, Enum.EasingStyle.Sine)
+	btnFrame.MouseEnter:Connect(function()
+		-- Brighten colors on hover
+		local brightenedStart = startColor:Lerp(Color3.new(1, 1, 1), 0.15)
+		local brightenedEnd = endColor:Lerp(Color3.new(1, 1, 1), 0.15)
+		Tween(gradient, {
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, brightenedStart),
+				ColorSequenceKeypoint.new(1, brightenedEnd)
+			})
+		}, 0.2)
 	end)
 	
-	btnFrame.MouseButton1Up:Connect(function()
-		Tween(btnFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.1, Enum.EasingStyle.Back)
+	btnFrame.MouseLeave:Connect(function()
+		Tween(gradient, {Color = originalColor}, 0.2)
 	end)
 	
-	-- Callback with error handling
 	btnFrame.MouseButton1Click:Connect(function()
+		-- Click bounce animation
+		Tween(btnFrame, {Size = UDim2.new(0.97, 0, 0, 46)}, 0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+		task.delay(0.08, function()
+			Tween(btnFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		end)
 		pcall(callback)
 	end)
-	
-	return btnFrame
 end
 
 		function tab:CreateToggle(options)
