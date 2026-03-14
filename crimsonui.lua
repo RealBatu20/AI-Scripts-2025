@@ -415,43 +415,170 @@ function CrimsonUI:CreateWindow(options)
 			SelectThisTab()
 		end
 
-		-- API: Elements
-		function tab:CreateButton(options)
-			local btnName = options.Name or "Button"
-			local callback = options.Callback or function() end
-			
-			local btnFrame = Create("TextButton", {
-				Name = btnName,
-				Parent = tab.Container,
-				Size = UDim2.new(1, 0, 0, 40),
-				BackgroundColor3 = CONFIG.Theme.Surface,
-				Text = "",
-				AutoButtonColor = false,
-				ClipsDescendants = true
-			}, {
-				Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
-				Create("UIStroke", { Color = CONFIG.Theme.Border, Thickness = 1 }),
-				Create("TextLabel", {
-					Size = UDim2.new(1, 0, 1, 0),
-					BackgroundTransparency = 1,
-					Text = btnName,
-					TextColor3 = CONFIG.Theme.Text,
-					Font = Enum.Font.GothamBold,
-					TextSize = 14
-				})
+		-- API: Create Gradient Button (Visual Upgrade)
+function tab:CreateButton(options)
+	local btnName = options.Name or "Button"
+	local callback = options.Callback or function() end
+	local icon = options.Icon or "💎" -- Allow custom icon, default to diamond
+	
+	-- Random vibrant gradient generator (avoiding the predefined table approach)
+	local function GenerateRandomGradient(): (Color3, Color3)
+		local hue1 = math.random() -- Random hue 0-1
+		local hue2 = (hue1 + 0.05 + (math.random() * 0.15)) % 1 -- Slightly offset, warm shift
+		local saturation = 0.7 + (math.random() * 0.3) -- 0.7-1.0 for vibrancy
+		local value = 0.8 + (math.random() * 0.2) -- 0.8-1.0 for brightness
+		
+		local startColor = Color3.fromHSV(hue1, saturation, value)
+		local endColor = Color3.fromHSV(hue2, saturation, value * 0.9) -- Slightly darker end
+		
+		return startColor, endColor
+	end
+	
+	local gradStart, gradEnd = GenerateRandomGradient()
+	
+	-- Main button frame
+	local btnFrame = Create("TextButton", {
+		Name = btnName,
+		Parent = tab.Container,
+		Size = UDim2.new(1, 0, 0, 48), -- Slightly taller for better presence
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255), -- White base for gradient
+		Text = "",
+		AutoButtonColor = false,
+		ClipsDescendants = true
+	}, {
+		Create("UICorner", { CornerRadius = UDim.new(0, 10) }), -- Slightly more rounded
+		
+		-- Gradient background
+		Create("UIGradient", {
+			Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, gradStart),
+				ColorSequenceKeypoint.new(1, gradEnd)
+			}),
+			Rotation = 90 -- Vertical gradient, start at top
+		}),
+		
+		-- Left accent bar (darker edge like in reference)
+		Create("Frame", {
+			Name = "LeftAccent",
+			Size = UDim2.new(0, 4, 1, 0),
+			Position = UDim2.new(0, 0, 0, 0),
+			BackgroundColor3 = gradStart:Lerp(Color3.new(0, 0, 0), 0.3), -- Darker version of start
+			BorderSizePixel = 0
+		}, {
+			Create("UICorner", { 
+				CornerRadius = UDim.new(0, 10) 
 			})
+		}),
+		
+		-- Layout container for icon + text
+		Create("Frame", {
+			Name = "Content",
+			Size = UDim2.new(1, -20, 1, 0),
+			Position = UDim2.new(0, 12, 0, 0),
+			BackgroundTransparency = 1
+		}, {
+			Create("UIListLayout", {
+				FillDirection = Enum.FillDirection.Horizontal,
+				SortOrder = Enum.SortOrder.LayoutOrder,
+				VerticalAlignment = Enum.VerticalAlignment.Center,
+				Padding = UDim.new(0, 10)
+			}),
 			
-			setupHover(btnFrame, CONFIG.Theme.Surface, CONFIG.Theme.SurfaceHover)
+			-- Icon label
+			Create("TextLabel", {
+				Name = "Icon",
+				Size = UDim2.new(0, 24, 0, 24),
+				BackgroundTransparency = 1,
+				Text = icon,
+				TextSize = 20,
+				Font = Enum.Font.GothamBold,
+				TextColor3 = Color3.fromRGB(255, 255, 255),
+				LayoutOrder = 1
+			}),
 			
-			btnFrame.MouseButton1Click:Connect(function()
-				-- Click bounce
-				Tween(btnFrame, {Size = UDim2.new(0.95, 0, 0, 38)}, 0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-				task.delay(0.1, function()
-					Tween(btnFrame, {Size = UDim2.new(1, 0, 0, 40)}, 0.1, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-				end)
-				pcall(callback)
-			end)
-		end
+			-- Text label
+			Create("TextLabel", {
+				Name = "Title",
+				Size = UDim2.new(1, -34, 0, 20),
+				BackgroundTransparency = 1,
+				Text = btnName,
+				TextColor3 = Color3.fromRGB(255, 255, 255),
+				Font = Enum.Font.GothamBold,
+				TextSize = 15,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				LayoutOrder = 2
+			})
+		}),
+		
+		-- Subtle shadow overlay at bottom for depth
+		Create("Frame", {
+			Name = "BottomShadow",
+			Size = UDim2.new(1, 0, 0, 2),
+			Position = UDim2.new(0, 0, 1, -2),
+			BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+			BackgroundTransparency = 0.7,
+			BorderSizePixel = 0
+		})
+	})
+	
+	-- Fix left accent corners (mask bottom right to only show left edge)
+	local leftAccent = btnFrame:FindFirstChild("LeftAccent")
+	if leftAccent then
+		local fixFrame = Create("Frame", {
+			Parent = leftAccent,
+			Size = UDim2.new(1, 0, 1, 0),
+			Position = UDim2.new(0.5, 0, 0, 0),
+			BackgroundColor3 = gradStart:Lerp(Color3.new(0, 0, 0), 0.3),
+			BorderSizePixel = 0
+		})
+	end
+	
+	-- Hover effect: brighten gradient
+	local gradient = btnFrame:FindFirstChildOfClass("UIGradient")
+	local originalStart, originalEnd = gradStart, gradEnd
+	
+	local function setupGradientHover(button: TextButton)
+		button.MouseEnter:Connect(function()
+			if gradient then
+				Tween(gradient, {
+					Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, originalStart:Lerp(Color3.new(1,1,1), 0.15)),
+						ColorSequenceKeypoint.new(1, originalEnd:Lerp(Color3.new(1,1,1), 0.15))
+					})
+				}, 0.2)
+			end
+		end)
+		
+		button.MouseLeave:Connect(function()
+			if gradient then
+				Tween(gradient, {
+					Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, originalStart),
+						ColorSequenceKeypoint.new(1, originalEnd)
+					})
+				}, 0.2)
+			end
+		end)
+	end
+	
+	setupGradientHover(btnFrame)
+	
+	-- Click animation: press down effect
+	btnFrame.MouseButton1Down:Connect(function()
+		Tween(btnFrame, {Size = UDim2.new(0.98, 0, 0, 46)}, 0.05, Enum.EasingStyle.Sine)
+	end)
+	
+	btnFrame.MouseButton1Up:Connect(function()
+		Tween(btnFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.1, Enum.EasingStyle.Back)
+	end)
+	
+	-- Callback with error handling
+	btnFrame.MouseButton1Click:Connect(function()
+		pcall(callback)
+	end)
+	
+	return btnFrame
+end
 
 		function tab:CreateToggle(options)
 			local togName = options.Name or "Toggle"
