@@ -109,7 +109,17 @@ local Themes = {
 local CurrentTheme = Themes.Dark
 local CustomTheme = nil
 
--- ========== FILE FUNCTIONS ==========
+-- ========== MAIN LIBRARY ==========
+local UI = {}
+UI.Themes = Themes
+UI.CurrentTheme = CurrentTheme
+UI.Windows = {}
+UI.Flags = {}
+UI.Connections = {}
+UI.ToggleKey = Enum.KeyCode.RightShift
+UI.UnloadKey = Enum.KeyCode.End
+
+-- ========== FILE FUNCTIONS (now after UI exists) ==========
 local function hasFile()
     return pcall(function() return writefile and readfile and isfile and makefolder end)
 end
@@ -145,16 +155,6 @@ function UI:LoadCustomTheme()
     CustomTheme = theme
     return theme
 end
-
--- ========== MAIN LIBRARY ==========
-local UI = {}
-UI.Themes = Themes
-UI.CurrentTheme = CurrentTheme
-UI.Windows = {}
-UI.Flags = {}
-UI.Connections = {}
-UI.ToggleKey = Enum.KeyCode.RightShift
-UI.UnloadKey = Enum.KeyCode.End
 
 function UI:SetTheme(name)
     if Themes[name] then
@@ -659,7 +659,7 @@ function UI.New(config)
         addColorPicker("Text Muted", "TextMuted")
         tab:Button({Name = "Save Custom Theme", Callback = function()
             UI:SaveCustomTheme(CurrentTheme)
-            UI:Notify("Theme saved!")
+            -- (optional notification)
         end})
         tab:Button({Name = "Load Custom Theme", Callback = function()
             local loaded = UI:LoadCustomTheme()
@@ -667,9 +667,6 @@ function UI.New(config)
                 UI:SetTheme("Custom")
                 window:Refresh()
                 editor:Refresh()
-                UI:Notify("Custom theme loaded!")
-            else
-                UI:Notify("No saved theme found", 3, "warning")
             end
         end})
         return editor
