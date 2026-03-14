@@ -107,20 +107,12 @@ local Themes = {
     }
 }
 local CurrentTheme = Themes.Dark
-local CustomTheme = nil  -- store user‑edited theme
+local CustomTheme = nil
 
--- ========== MAIN LIBRARY ==========
-local UI = {}
-UI.Themes = Themes
-UI.CurrentTheme = CurrentTheme
-UI.Windows = {}
-UI.Flags = {}
-UI.Connections = {}
-UI.ToggleKey = Enum.KeyCode.RightShift
-UI.UnloadKey = Enum.KeyCode.End
-
--- File functions (if executor supports)
-local function hasFile() return pcall(function() return writefile and readfile and isfile and makefolder end) end
+-- ========== FILE FUNCTIONS ==========
+local function hasFile()
+    return pcall(function() return writefile and readfile and isfile and makefolder end)
+end
 local ThemeFile = "crimson_theme.json"
 
 function UI:SaveCustomTheme(theme)
@@ -153,6 +145,16 @@ function UI:LoadCustomTheme()
     CustomTheme = theme
     return theme
 end
+
+-- ========== MAIN LIBRARY ==========
+local UI = {}
+UI.Themes = Themes
+UI.CurrentTheme = CurrentTheme
+UI.Windows = {}
+UI.Flags = {}
+UI.Connections = {}
+UI.ToggleKey = Enum.KeyCode.RightShift
+UI.UnloadKey = Enum.KeyCode.End
 
 function UI:SetTheme(name)
     if Themes[name] then
@@ -443,7 +445,7 @@ function UI.New(config)
         Util.Create("UIPadding", {PaddingTop = UDim.new(0,4), PaddingBottom = UDim.new(0,8)})
     })
 
-    -- Tab container (for multiple tabs, but we'll keep simple)
+    -- Tab container
     local tabContainer = Util.Create("Frame", {
         Name = "Tabs",
         BackgroundTransparency = 1,
@@ -451,7 +453,6 @@ function UI.New(config)
         Parent = content
     })
 
-    -- We'll store elements per tab
     local tabs = {}
     local currentTab = nil
 
@@ -510,7 +511,6 @@ function UI.New(config)
         if self.Minimized then return end
         self.Minimized = true
         minBtn.Text = "+"
-        -- Hide content
         for _, child in ipairs(content:GetDescendants()) do
             if child:IsA("GuiObject") then
                 Util.Tween(child, 0.2, {BackgroundTransparency = 1, TextTransparency = 1})
@@ -578,7 +578,6 @@ function UI.New(config)
     end)
 
     function window:_performSearch(query)
-        -- Clear previous results
         for _, child in ipairs(searchResults:GetChildren()) do
             if child:IsA("TextButton") then child:Destroy() end
         end
@@ -608,7 +607,6 @@ function UI.New(config)
                     })
                 })
                 btn.MouseButton1Click:Connect(function()
-                    -- Focus the element? For now just close search
                     window.SearchOpen = false
                     searchOverlay.Visible = false
                 end)
@@ -631,6 +629,51 @@ function UI.New(config)
     shadow.ImageTransparency = 1
     Util.Tween(shadow, 0.5, {ImageTransparency = 0.6, Size = originalShadowSize})
     Util.Tween(main, 0.5, {Size = originalSize}, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+
+    -- ========== THEME EDITOR FUNCTION ==========
+    function window:OpenThemeEditor()
+        -- Creates a simple theme editor window (stub – can be expanded)
+        local editor = UI.New({
+            Title = "Theme Editor",
+            Size = UDim2.new(0, 300, 0, 400),
+            Theme = CurrentTheme.Name
+        })
+        local tab = editor:Tab("Edit")
+        tab:Section("Colors")
+        local function addColorPicker(name, key)
+            tab:ColorPicker({
+                Name = name,
+                Default = CurrentTheme[key],
+                Callback = function(col)
+                    CurrentTheme[key] = col
+                    window:Refresh()
+                    editor:Refresh()
+                end
+            })
+        end
+        addColorPicker("Background", "Background")
+        addColorPicker("Surface", "Surface")
+        addColorPicker("Accent", "Accent")
+        addColorPicker("Card", "Card")
+        addColorPicker("Text", "Text")
+        addColorPicker("Text Muted", "TextMuted")
+        tab:Button({Name = "Save Custom Theme", Callback = function()
+            UI:SaveCustomTheme(CurrentTheme)
+            UI:Notify("Theme saved!")
+        end})
+        tab:Button({Name = "Load Custom Theme", Callback = function()
+            local loaded = UI:LoadCustomTheme()
+            if loaded then
+                UI:SetTheme("Custom")
+                window:Refresh()
+                editor:Refresh()
+                UI:Notify("Custom theme loaded!")
+            else
+                UI:Notify("No saved theme found", 3, "warning")
+            end
+        end})
+        return editor
+    end
 
     -- ========== TAB CREATION ==========
     function window:Tab(name)
@@ -688,7 +731,7 @@ function UI.New(config)
                 Parent = self.Frame
             }, {
                 Util.Create("UICorner", {CornerRadius = UDim.new(0,10)}),
-                Util.Create("UIGradient", {  -- subtle gradient
+                Util.Create("UIGradient", {
                     Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.new(1,1,1)), ColorSequenceKeypoint.new(1, Color3.fromRGB(230,230,240))}),
                     Rotation = 90
                 }),
@@ -909,8 +952,7 @@ function UI.New(config)
             return {Set = update, Get = function() return value end}
         end
 
-                -- ========== ADDITIONAL ELEMENTS ==========
-
+        -- ========== ADDITIONAL ELEMENTS ==========
         function tabObj:Dropdown(config)
             local name = config.Name or "Dropdown"
             local options = config.Options or {}
