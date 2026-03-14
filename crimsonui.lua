@@ -36,6 +36,17 @@ local CONFIG = {
 	}
 }
 
+-- Aspect Ratio configurations
+local ASPECT_RATIOS = {
+	{ name = "16:9", ratio = 16/9, desc = "Widescreen" },
+	{ name = "9:16", ratio = 9/16, desc = "Vertical" },
+	{ name = "1:1", ratio = 1, desc = "Square" },
+	{ name = "4:3", ratio = 4/3, desc = "Classic" },
+	{ name = "3:2", ratio = 3/2, desc = "Photography" },
+	{ name = "21:9", ratio = 21/9, desc = "Ultrawide" },
+	{ name = "1.85:1", ratio = 1.85, desc = "Cinema" }
+}
+
 -- Utility to create instances cleanly
 local function Create(className, properties, children)
 	local inst = Instance.new(className)
@@ -85,13 +96,15 @@ getgenv().CrimsonUI_Instance = screenGui
 function CrimsonUI:CreateWindow(options)
 	options = options or {}
 	local title = options.Title or "Crimson Window"
-	local icon = options.Icon or "🎲"
+	local icon = options.Icon or ""
 	local windowSize = options.Size or Vector2.new(300, 380)
 	
 	local window = {
 		Tabs = {},
 		CurrentTab = nil,
-		IsMinimized = false
+		IsMinimized = false,
+		CurrentAspectRatio = ASPECT_RATIOS[1], -- Default to 16:9
+		BaseWidth = windowSize.X
 	}
 	
 	-- Shadow
@@ -104,10 +117,17 @@ function CrimsonUI:CreateWindow(options)
 		BackgroundTransparency = 1,
 		Image = "rbxassetid://1316045217",
 		ImageColor3 = CONFIG.Theme.Shadow,
-		ImageTransparency = 1, -- Start invisible for intro
+		ImageTransparency = 1,
 		ScaleType = Enum.ScaleType.Slice,
 		SliceCenter = Rect.new(10, 10, 118, 118),
 		ZIndex = 0
+	})
+	
+	-- Aspect Ratio Constraint for responsive scaling
+	local aspectRatioConstraint = Create("UIAspectRatioConstraint", {
+		AspectRatio = window.CurrentAspectRatio.ratio,
+		AspectType = Enum.AspectType.FitWithinMaxSize,
+		DominantAxis = Enum.DominantAxis.Width
 	})
 	
 	-- Main Frame
@@ -116,15 +136,22 @@ function CrimsonUI:CreateWindow(options)
 		Parent = screenGui,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.5, 0),
-		Size = UDim2.new(0, windowSize.X, 0, 0), -- Start collapsed
+		Size = UDim2.new(0, windowSize.X, 0, 0),
 		BackgroundColor3 = CONFIG.Theme.Background,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
 		ZIndex = 1
 	}, {
 		Create("UICorner", { CornerRadius = UDim.new(0, 12) }),
-		Create("UIStroke", { Color = CONFIG.Theme.Border, Thickness = 1.5 })
+		Create("UIStroke", { Color = CONFIG.Theme.Border, Thickness = 1.5 }),
+		aspectRatioConstraint
 	})
+	
+	-- Calculate height based on aspect ratio
+	local function updateSizeFromRatio()
+		local newHeight = window.BaseWidth / window.CurrentAspectRatio.ratio
+		return Vector2.new(window.BaseWidth, newHeight)
+	end
 	
 	-- Header
 	local header = Create("Frame", {
@@ -136,7 +163,7 @@ function CrimsonUI:CreateWindow(options)
 		ZIndex = 2
 	}, {
 		Create("UICorner", { CornerRadius = UDim.new(0, 12) }),
-		Create("Frame", { -- Fix bottom corners of header
+		Create("Frame", {
 			Size = UDim2.new(1, 0, 0.5, 0),
 			Position = UDim2.new(0, 0, 0.5, 0),
 			BackgroundColor3 = CONFIG.Theme.Surface,
@@ -156,7 +183,7 @@ function CrimsonUI:CreateWindow(options)
 		}),
 		Create("TextLabel", {
 			Name = "Title",
-			Size = UDim2.new(1, -120, 1, 0),
+			Size = UDim2.new(1, -200, 1, 0),
 			Position = UDim2.new(0, 45, 0, 0),
 			BackgroundTransparency = 1,
 			Text = title,
@@ -171,7 +198,7 @@ function CrimsonUI:CreateWindow(options)
 	local controls = Create("Frame", {
 		Name = "Controls",
 		Parent = header,
-		Size = UDim2.new(0, 80, 0, 30),
+		Size = UDim2.new(0, 150, 0, 30),
 		Position = UDim2.new(1, -10, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
@@ -184,6 +211,21 @@ function CrimsonUI:CreateWindow(options)
 			Padding = UDim.new(0, 8)
 		})
 	})
+	
+	-- Aspect Ratio Button (NEW)
+	local aspectBtn = Create("TextButton", {
+		Name = "AspectRatio",
+		Parent = controls,
+		Size = UDim2.new(0, 50, 0, 30),
+		BackgroundColor3 = CONFIG.Theme.SurfaceHover,
+		Text = window.CurrentAspectRatio.name,
+		TextColor3 = CONFIG.Theme.TextMuted,
+		Font = Enum.Font.GothamBold,
+		TextSize = 12,
+		AutoButtonColor = false,
+		LayoutOrder = 0,
+		ZIndex = 4
+	}, { Create("UICorner", { CornerRadius = UDim.new(0, 6) }) })
 	
 	local minimizeBtn = Create("TextButton", {
 		Name = "Minimize",
@@ -204,7 +246,7 @@ function CrimsonUI:CreateWindow(options)
 		Parent = controls,
 		Size = UDim2.new(0, 30, 0, 30),
 		BackgroundColor3 = CONFIG.Theme.Close,
-		Text = "x",
+		Text = "×",
 		TextColor3 = CONFIG.Theme.Text,
 		Font = Enum.Font.GothamBold,
 		TextSize = 16,
@@ -212,6 +254,153 @@ function CrimsonUI:CreateWindow(options)
 		LayoutOrder = 2,
 		ZIndex = 4
 	}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+	
+	-- Aspect Ratio Dropdown (hidden by default)
+	local aspectDropdown = Create("Frame", {
+		Name = "AspectDropdown",
+		Parent = header,
+		Size = UDim2.new(0, 80, 0, 0),
+		Position = UDim2.new(1, -155, 1, 5),
+		BackgroundColor3 = CONFIG.Theme.Surface,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Visible = false,
+		ZIndex = 10
+	}, {
+		Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
+		Create("UIListLayout", {
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			Padding = UDim.new(0, 2)
+		}),
+		Create("UIPadding", {
+			PaddingTop = UDim.new(0, 5),
+			PaddingBottom = UDim.new(0, 5),
+			PaddingLeft = UDim.new(0, 5),
+			PaddingRight = UDim.new(0, 5)
+		})
+	})
+	
+	-- Populate aspect ratio options
+	for i, ratioData in ipairs(ASPECT_RATIOS) do
+		local option = Create("TextButton", {
+			Name = ratioData.name,
+			Parent = aspectDropdown,
+			Size = UDim2.new(1, 0, 0, 28),
+			BackgroundColor3 = CONFIG.Theme.Background,
+			Text = ratioData.name,
+			TextColor3 = (ratioData.name == window.CurrentAspectRatio.name) and CONFIG.Theme.Accent or CONFIG.Theme.TextMuted,
+			Font = Enum.Font.GothamBold,
+			TextSize = 11,
+			AutoButtonColor = false,
+			LayoutOrder = i,
+			ZIndex = 11
+		}, { Create("UICorner", { CornerRadius = UDim.new(0, 4) }) })
+		
+		option.MouseEnter:Connect(function()
+			if ratioData.name ~= window.CurrentAspectRatio.name then
+				Tween(option, {BackgroundColor3 = CONFIG.Theme.SurfaceHover, TextColor3 = CONFIG.Theme.Text}, 0.15)
+			end
+		end)
+		
+		option.MouseLeave:Connect(function()
+			if ratioData.name ~= window.CurrentAspectRatio.name then
+				Tween(option, {BackgroundColor3 = CONFIG.Theme.Background, TextColor3 = CONFIG.Theme.TextMuted}, 0.15)
+			end
+		end)
+		
+		option.MouseButton1Click:Connect(function()
+			-- Update current ratio
+			window.CurrentAspectRatio = ratioData
+			aspectBtn.Text = ratioData.name
+			
+			-- Update dropdown visuals
+			for _, child in ipairs(aspectDropdown:GetChildren()) do
+				if child:IsA("TextButton") then
+					if child.Name == ratioData.name then
+						Tween(child, {BackgroundColor3 = CONFIG.Theme.Background, TextColor3 = CONFIG.Theme.Accent}, 0.15)
+					else
+						Tween(child, {BackgroundColor3 = CONFIG.Theme.Background, TextColor3 = CONFIG.Theme.TextMuted}, 0.15)
+					end
+				end
+			end
+			
+			-- Smooth transition to new aspect ratio
+			local newSize = updateSizeFromRatio()
+			
+			-- Animate aspect ratio constraint
+			local targetRatio = ratioData.ratio
+			local startRatio = aspectRatioConstraint.AspectRatio
+			local ratioTweenTime = 0.4
+			local startTime = tick()
+			
+			task.spawn(function()
+				while tick() - startTime < ratioTweenTime do
+					local alpha = (tick() - startTime) / ratioTweenTime
+					-- Smooth step interpolation
+					alpha = alpha * alpha * (3 - 2 * alpha)
+					aspectRatioConstraint.AspectRatio = startRatio + (targetRatio - startRatio) * alpha
+					task.wait()
+				end
+				aspectRatioConstraint.AspectRatio = targetRatio
+			end)
+			
+			-- Animate size
+			Tween(mainFrame, {
+				Size = UDim2.new(0, newSize.X, 0, newSize.Y)
+			}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+			
+			Tween(shadow, {
+				Size = UDim2.new(0, newSize.X + 20, 0, newSize.Y + 20)
+			}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+			
+			-- Close dropdown
+			Tween(aspectDropdown, {Size = UDim2.new(0, 80, 0, 0)}, 0.2)
+			task.delay(0.2, function()
+				aspectDropdown.Visible = false
+			end)
+		end)
+	end
+	
+	-- Toggle aspect dropdown
+	local aspectExpanded = false
+	aspectBtn.MouseButton1Click:Connect(function()
+		aspectExpanded = not aspectExpanded
+		if aspectExpanded then
+			aspectDropdown.Visible = true
+			Tween(aspectDropdown, {Size = UDim2.new(0, 80, 0, math.min(#ASPECT_RATIOS * 30 + 10, 200))}, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+		else
+			Tween(aspectDropdown, {Size = UDim2.new(0, 80, 0, 0)}, 0.2)
+			task.delay(0.2, function()
+				aspectDropdown.Visible = false
+			end)
+		end
+	end)
+	
+	-- Close dropdown when clicking elsewhere
+	UserInputService.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			if aspectExpanded then
+				local mousePos = UserInputService:GetMouseLocation()
+				local absPos = aspectDropdown.AbsolutePosition
+				local absSize = aspectDropdown.AbsoluteSize
+				
+				if mousePos.X < absPos.X or mousePos.X > absPos.X + absSize.X or
+				   mousePos.Y < absPos.Y or mousePos.Y > absPos.Y + absSize.Y then
+					local btnAbsPos = aspectBtn.AbsolutePosition
+					local btnAbsSize = aspectBtn.AbsoluteSize
+					
+					if mousePos.X < btnAbsPos.X or mousePos.X > btnAbsPos.X + btnAbsSize.X or
+					   mousePos.Y < btnAbsPos.Y or mousePos.Y > btnAbsPos.Y + btnAbsSize.Y then
+						aspectExpanded = false
+						Tween(aspectDropdown, {Size = UDim2.new(0, 80, 0, 0)}, 0.2)
+						task.delay(0.2, function()
+							aspectDropdown.Visible = false
+						end)
+					end
+				end
+			end
+		end
+	end)
 	
 	local tabContainer = Create("Frame", {
 		Name = "TabContainer",
@@ -247,13 +436,14 @@ function CrimsonUI:CreateWindow(options)
 
 	header.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			-- Prevent dragging if clicking controls
 			local mousePos = UserInputService:GetMouseLocation()
 			local minAbs, minSize = minimizeBtn.AbsolutePosition, minimizeBtn.AbsoluteSize
 			local closeAbs, closeSize = closeBtn.AbsolutePosition, closeBtn.AbsoluteSize
+			local aspectAbs, aspectSize = aspectBtn.AbsolutePosition, aspectBtn.AbsoluteSize
 			
 			if (mousePos.X >= minAbs.X and mousePos.X <= minAbs.X + minSize.X and mousePos.Y >= minAbs.Y and mousePos.Y <= minAbs.Y + minSize.Y) or
-			   (mousePos.X >= closeAbs.X and mousePos.X <= closeAbs.X + closeSize.X and mousePos.Y >= closeAbs.Y and mousePos.Y <= closeAbs.Y + closeSize.Y) then
+			   (mousePos.X >= closeAbs.X and mousePos.X <= closeAbs.X + closeSize.X and mousePos.Y >= closeAbs.Y and mousePos.Y <= closeAbs.Y + closeSize.Y) or
+			   (mousePos.X >= aspectAbs.X and mousePos.X <= aspectAbs.X + aspectSize.X and mousePos.Y >= aspectAbs.Y and mousePos.Y <= aspectAbs.Y + aspectSize.Y) then
 				return
 			end
 			
@@ -288,7 +478,6 @@ function CrimsonUI:CreateWindow(options)
 			if not isDragging then return end
 			isDragging = false
 			
-			-- If minimized, clicking the header (without dragging) maximizes it
 			if window.IsMinimized and not hasDragged and (tick() - dragStartTime) < CONFIG.Drag.MaxClickTime then
 				window:Maximize()
 			end
@@ -301,28 +490,56 @@ function CrimsonUI:CreateWindow(options)
 		btn.MouseLeave:Connect(function() Tween(btn, {BackgroundColor3 = normalColor}, 0.2) end)
 	end
 	
+	setupHover(aspectBtn, CONFIG.Theme.SurfaceHover, CONFIG.Theme.SurfaceHover:Lerp(Color3.new(1,1,1), 0.1))
 	setupHover(minimizeBtn, CONFIG.Theme.Minimize, CONFIG.Theme.Minimize:Lerp(Color3.new(1,1,1), 0.15))
 	setupHover(closeBtn, CONFIG.Theme.Close, CONFIG.Theme.Close:Lerp(Color3.new(1,1,1), 0.15))
 	
-	local originalSize = UDim2.new(0, windowSize.X, 0, windowSize.Y)
-	local originalShadowSize = UDim2.new(0, windowSize.X + 20, 0, windowSize.Y + 20)
-	local minSize = UDim2.new(0, windowSize.X, 0, 45)
-	local minShadowSize = UDim2.new(0, windowSize.X + 20, 0, 45 + 20)
+	local currentSize = updateSizeFromRatio()
+	local originalSize = UDim2.new(0, currentSize.X, 0, currentSize.Y)
+	local originalShadowSize = UDim2.new(0, currentSize.X + 20, 0, currentSize.Y + 20)
+	local minSize = UDim2.new(0, currentSize.X, 0, 45)
+	local minShadowSize = UDim2.new(0, currentSize.X + 20, 0, 45 + 20)
 
 	function window:Minimize()
 		window.IsMinimized = true
 		minimizeBtn.Text = "+"
 		tabContainer.Visible = false
 		contentContainer.Visible = false
-		Tween(mainFrame, {Size = minSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-		Tween(shadow, {Size = minShadowSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+		aspectDropdown.Visible = false
+		aspectExpanded = false
+		
+		-- NEW: Minimize animation - collapse upward into title bar
+		local currentPos = mainFrame.Position
+		local targetY = currentPos.Y.Offset - (currentSize.Y / 2) + 22.5 -- Move up to show only header
+		
+		Tween(mainFrame, {
+			Size = minSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, targetY)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+		
+		Tween(shadow, {
+			Size = minShadowSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, targetY)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 	end
 	
 	function window:Maximize()
 		window.IsMinimized = false
 		minimizeBtn.Text = "−"
-		Tween(mainFrame, {Size = originalSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		Tween(shadow, {Size = originalShadowSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		
+		local currentPos = mainFrame.Position
+		local targetY = currentPos.Y.Offset + (currentSize.Y / 2) - 22.5 -- Move back down
+		
+		Tween(mainFrame, {
+			Size = originalSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, targetY)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		
+		Tween(shadow, {
+			Size = originalShadowSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, targetY)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		
 		task.delay(0.1, function()
 			tabContainer.Visible = true
 			contentContainer.Visible = true
@@ -410,107 +627,100 @@ function CrimsonUI:CreateWindow(options)
 		
 		tabBtn.MouseButton1Click:Connect(SelectThisTab)
 		
-		-- Auto-select first tab
-		if #tabContainer:GetChildren() == 2 then -- UIListLayout + 1st Button
+		if #tabContainer:GetChildren() == 2 then
 			SelectThisTab()
 		end
 
-		-- API: Elements
-function tab:CreateButton(options)
-	local btnName = options.Name or "Button"
-	local callback = options.Callback or function() end
-	
-	-- Generate random vibrant gradient colors
-	local function randomVibrantColor()
-		local hue = math.random() -- Random hue 0-1
-		local saturation = 0.7 + (math.random() * 0.3) -- 0.7-1.0 for vibrancy
-		local value = 0.8 + (math.random() * 0.2) -- 0.8-1.0 for brightness
-		return Color3.fromHSV(hue, saturation, value)
-	end
-	
-	local startColor = randomVibrantColor()
-	local endColor = Color3.fromHSV(
-		(select(1, startColor:ToHSV()) + 0.05) % 1, -- Slight hue shift
-		math.clamp(select(2, startColor:ToHSV()) + (math.random() - 0.5) * 0.2, 0.5, 1),
-		math.clamp(select(3, startColor:ToHSV()) + (math.random() - 0.5) * 0.2, 0.6, 1)
-	)
-	
-	local btnFrame = Create("TextButton", {
-		Name = btnName,
-		Parent = tab.Container,
-		Size = UDim2.new(1, 0, 0, 48),
-		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-		Text = "",
-		AutoButtonColor = false,
-		ClipsDescendants = true
-	}, {
-		Create("UICorner", { CornerRadius = UDim.new(0, 10) }),
-		-- Gradient background using UIGradient
-		Create("UIGradient", {
-			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, startColor),
-				ColorSequenceKeypoint.new(1, endColor)
-			}),
-			Rotation = 0 -- Horizontal gradient left to right
-		}),
-		-- Left icon (diamond shape using text or you can use ImageLabel)
-		Create("TextLabel", {
-			Name = "Icon",
-			Position = UDim2.new(0, 15, 0.5, 0),
-			AnchorPoint = Vector2.new(0, 0.5),
-			Size = UDim2.new(0, 24, 0, 24),
-			BackgroundTransparency = 1,
-			Text = "◆", -- Diamond character, change to ImageLabel with asset if preferred
-			TextColor3 = Color3.fromRGB(255, 255, 255),
-			Font = Enum.Font.GothamBold,
-			TextSize = 18,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			TextYAlignment = Enum.TextYAlignment.Center
-		}),
-		-- Text label
-		Create("TextLabel", {
-			Name = "Title",
-			Position = UDim2.new(0, 48, 0, 0),
-			Size = UDim2.new(1, -60, 1, 0),
-			BackgroundTransparency = 1,
-			Text = btnName,
-			TextColor3 = Color3.fromRGB(255, 255, 255),
-			Font = Enum.Font.GothamBold,
-			TextSize = 16,
-			TextXAlignment = Enum.TextXAlignment.Left,
-			TextYAlignment = Enum.TextYAlignment.Center
-		})
-	})
-	
-	-- Hover effect - brighten the gradient
-	local gradient = btnFrame:FindFirstChildOfClass("UIGradient")
-	local originalColor = gradient.Color
-	
-	btnFrame.MouseEnter:Connect(function()
-		-- Brighten colors on hover
-		local brightenedStart = startColor:Lerp(Color3.new(1, 1, 1), 0.15)
-		local brightenedEnd = endColor:Lerp(Color3.new(1, 1, 1), 0.15)
-		Tween(gradient, {
-			Color = ColorSequence.new({
-				ColorSequenceKeypoint.new(0, brightenedStart),
-				ColorSequenceKeypoint.new(1, brightenedEnd)
+		-- API: Elements (with gradient buttons as requested)
+		function tab:CreateButton(options)
+			local btnName = options.Name or "Button"
+			local callback = options.Callback or function() end
+			
+			-- Generate random vibrant gradient colors
+			local function randomVibrantColor()
+				local hue = math.random()
+				local saturation = 0.7 + (math.random() * 0.3)
+				local value = 0.8 + (math.random() * 0.2)
+				return Color3.fromHSV(hue, saturation, value)
+			end
+			
+			local startColor = randomVibrantColor()
+			local endColor = Color3.fromHSV(
+				(select(1, startColor:ToHSV()) + 0.05) % 1,
+				math.clamp(select(2, startColor:ToHSV()) + (math.random() - 0.5) * 0.2, 0.5, 1),
+				math.clamp(select(3, startColor:ToHSV()) + (math.random() - 0.5) * 0.2, 0.6, 1)
+			)
+			
+			local btnFrame = Create("TextButton", {
+				Name = btnName,
+				Parent = tab.Container,
+				Size = UDim2.new(1, 0, 0, 48),
+				BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+				Text = "",
+				AutoButtonColor = false,
+				ClipsDescendants = true
+			}, {
+				Create("UICorner", { CornerRadius = UDim.new(0, 10) }),
+				Create("UIGradient", {
+					Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, startColor),
+						ColorSequenceKeypoint.new(1, endColor)
+					}),
+					Rotation = 0
+				}),
+				Create("TextLabel", {
+					Name = "Icon",
+					Position = UDim2.new(0, 15, 0.5, 0),
+					AnchorPoint = Vector2.new(0, 0.5),
+					Size = UDim2.new(0, 24, 0, 24),
+					BackgroundTransparency = 1,
+					Text = "◆",
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+					Font = Enum.Font.GothamBold,
+					TextSize = 18,
+					TextXAlignment = Enum.TextXAlignment.Center,
+					TextYAlignment = Enum.TextYAlignment.Center
+				}),
+				Create("TextLabel", {
+					Name = "Title",
+					Position = UDim2.new(0, 48, 0, 0),
+					Size = UDim2.new(1, -60, 1, 0),
+					BackgroundTransparency = 1,
+					Text = btnName,
+					TextColor3 = Color3.fromRGB(255, 255, 255),
+					Font = Enum.Font.GothamBold,
+					TextSize = 16,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextYAlignment = Enum.TextYAlignment.Center
+				})
 			})
-		}, 0.2)
-	end)
-	
-	btnFrame.MouseLeave:Connect(function()
-		Tween(gradient, {Color = originalColor}, 0.2)
-	end)
-	
-	btnFrame.MouseButton1Click:Connect(function()
-		-- Click bounce animation
-		Tween(btnFrame, {Size = UDim2.new(0.97, 0, 0, 46)}, 0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
-		task.delay(0.08, function()
-			Tween(btnFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		end)
-		pcall(callback)
-	end)
-end
+			
+			local gradient = btnFrame:FindFirstChildOfClass("UIGradient")
+			local originalColor = gradient.Color
+			
+			btnFrame.MouseEnter:Connect(function()
+				local brightenedStart = startColor:Lerp(Color3.new(1, 1, 1), 0.15)
+				local brightenedEnd = endColor:Lerp(Color3.new(1, 1, 1), 0.15)
+				Tween(gradient, {
+					Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, brightenedStart),
+						ColorSequenceKeypoint.new(1, brightenedEnd)
+					})
+				}, 0.2)
+			end)
+			
+			btnFrame.MouseLeave:Connect(function()
+				Tween(gradient, {Color = originalColor}, 0.2)
+			end)
+			
+			btnFrame.MouseButton1Click:Connect(function()
+				Tween(btnFrame, {Size = UDim2.new(0.97, 0, 0, 46)}, 0.08, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+				task.delay(0.08, function()
+					Tween(btnFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+				end)
+				pcall(callback)
+			end)
+		end
 
 		function tab:CreateToggle(options)
 			local togName = options.Name or "Toggle"
@@ -570,7 +780,6 @@ end
 				UpdateToggle()
 			end)
 			
-			-- Initial fire
 			if state then UpdateToggle() end
 		end
 
@@ -768,11 +977,10 @@ end
 						selectedText.Text = selected
 						pcall(callback, selected)
 						
-						-- Close
 						expanded = false
 						Tween(arrow, {Rotation = 0}, 0.2)
 						Tween(dropFrame, {Size = UDim2.new(1, 0, 0, 35)}, 0.2)
-						UpdateList() -- refresh colors
+						UpdateList()
 					end)
 				end
 			end
