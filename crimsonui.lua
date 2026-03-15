@@ -35,6 +35,14 @@ local CONFIG = {
 	Drag = {
 		ClickThreshold = 5,
 		MaxClickTime = 0.3
+	},
+	Tooltip = {
+		Delay = 2.0, -- 2 seconds hover before showing
+		Background = Color3.fromRGB(40, 40, 50),
+		TextColor = Color3.fromRGB(255, 255, 255),
+		CornerRadius = 6,
+		Padding = 8,
+		MaxWidth = 200
 	}
 }
 
@@ -62,6 +70,143 @@ local function Tween(obj, props, time, style, direction)
 	local tween = TweenService:Create(obj, tweenInfo, props)
 	tween:Play()
 	return tween
+end
+
+-- Tooltip System
+local activeTooltip = nil
+local tooltipConnection = nil
+
+local function HideTooltip()
+	if activeTooltip then
+		Tween(activeTooltip, {Size = UDim2.new(0, activeTooltip.AbsoluteSize.X, 0, 0), Position = UDim2.new(activeTooltip.Position.X.Scale, activeTooltip.Position.X.Offset, activeTooltip.Position.Y.Scale, activeTooltip.Position.Y.Offset + 10)}, 0.15)
+		task.delay(0.15, function()
+			if activeTooltip then
+				activeTooltip:Destroy()
+				activeTooltip = nil
+			end
+		end)
+	end
+	if tooltipConnection then
+		tooltipConnection:Disconnect()
+		tooltipConnection = nil
+	end
+end
+
+local function ShowTooltip(parentElement, text, screenGui)
+	if not text or text == "" then return end
+	if activeTooltip then HideTooltip() end
+	
+	-- Create tooltip container
+	activeTooltip = Create("Frame", {
+		Name = "Tooltip",
+		Parent = screenGui,
+		BackgroundColor3 = CONFIG.Tooltip.Background,
+		BorderSizePixel = 0,
+		ZIndex = 1000,
+		Size = UDim2.new(0, 0, 0, 0),
+		Position = UDim2.new(0, 0, 0, 0) -- Will position dynamically
+	}, {
+		Create("UICorner", { CornerRadius = UDim.new(0, CONFIG.Tooltip.CornerRadius) }),
+		Create("UIStroke", { Color = CONFIG.Theme.Border, Thickness = 1 }),
+		Create("UIPadding", { 
+			PaddingLeft = UDim.new(0, CONFIG.Tooltip.Padding), 
+			PaddingRight = UDim.new(0, CONFIG.Tooltip.Padding),
+			PaddingTop = UDim.new(0, CONFIG.Tooltip.Padding),
+			PaddingBottom = UDim.new(0, CONFIG.Tooltip.Padding)
+		})
+	})
+	
+	local label = Create("TextLabel", {
+		Parent = activeTooltip,
+		BackgroundTransparency = 1,
+		Text = text,
+		TextColor3 = CONFIG.Tooltip.TextColor,
+		Font = Enum.Font.GothamMedium,
+		TextSize = 12,
+		TextWrapped = true,
+		AutomaticSize = Enum.AutomaticSize.XY,
+		Size = UDim2.new(0, 0, 0, 0),
+		MaxSize = Vector2.new(CONFIG.Tooltip.MaxWidth, math.huge)
+	})
+	
+	-- Position tooltip above the element
+	task.defer(function()
+		if not activeTooltip then return end
+		
+		local absPos = parentElement.AbsolutePosition
+		local absSize = parentElement.AbsoluteSize
+		local tooltipSize = activeTooltip.AbsoluteSize
+		
+		local targetX = absPos.X + (absSize.X / 2) - (tooltipSize.X / 2)
+		local targetY = absPos.Y - tooltipSize.Y - 8 -- 8px gap above
+		
+		-- Clamp to screen bounds
+		local screenSize = workspace.CurrentCamera.ViewportSize
+		targetX = math.clamp(targetX, 10, screenSize.X - tooltipSize.X - 10)
+		targetY = math.max(targetY, 10)
+		
+		activeTooltip.Position = UDim2.new(0, targetX, 0, targetY + 10)
+		activeTooltip.Size = UDim2.new(0, tooltipSize.X, 0, 0)
+		
+		-- Animate in
+		Tween(activeTooltip, {
+			Size = UDim2.new(0, tooltipSize.X, 0, tooltipSize.Y),
+			Position = UDim2.new(0, targetX, 0, targetY)
+		}, 0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	end)
+	
+	-- Auto-hide when parent is no longer hovered (checked via mouse position)
+	tooltipConnection = game:GetService("RunService").Heartbeat:Connect(function()
+		if not activeTooltip or not parentElement or not parentElement.Parent then
+			HideTooltip()
+			return
+		end
+		
+		local mousePos = UserInputService:GetMouseLocation()
+		local absPos = parentElement.AbsolutePosition
+		local absSize = parentElement.AbsoluteSize
+		
+		if mousePos.X < absPos.X or mousePos.X > absPos.X + absSize.X or
+		   mousePos.Y < absPos.Y or mousePos.Y > absPos.Y + absSize.Y then
+			HideTooltip()
+		end
+	end)
+end
+
+local function SetupTooltip(element, text, screenGui)
+	if not text or text == "" then return end
+	
+	local hoverStartTime = 0
+	local isHovering = false
+	local checkConnection = nil
+	
+	element.MouseEnter:Connect(function()
+		isHovering = true
+		hoverStartTime = tick()
+		
+		-- Start checking for 2-second threshold
+		checkConnection = game:GetService("RunService").Heartbeat:Connect(function()
+			if not isHovering then
+				checkConnection:Disconnect()
+				return
+			end
+			
+			if tick() - hoverStartTime >= CONFIG.Tooltip.Delay then
+				checkConnection:Disconnect()
+				if isHovering then
+					ShowTooltip(element, text, screenGui)
+				end
+			end
+		end)
+	end)
+	
+	element.MouseLeave:Connect(function()
+		isHovering = false
+		if checkConnection then
+			checkConnection:Disconnect()
+		end
+		HideTooltip()
+	end)
 end
 
 -- Clean up existing instances if re-executed
@@ -297,18 +442,23 @@ function CrimsonUI:CreateWindow(options)
 		end
 	end)
 	
-	-- Button Hovers
-	local function setupHover(btn, normalColor, hoverColor)
+	-- Button Hovers & Tooltips
+	local function setupHover(btn, normalColor, hoverColor, tooltipText)
 		btn.MouseEnter:Connect(function() Tween(btn, {BackgroundColor3 = hoverColor}, 0.2) end)
 		btn.MouseLeave:Connect(function() Tween(btn, {BackgroundColor3 = normalColor}, 0.2) end)
+		
+		if tooltipText then
+			SetupTooltip(btn, tooltipText, screenGui)
+		end
 	end
 	
-	setupHover(minimizeBtn, CONFIG.Theme.Minimize, CONFIG.Theme.Minimize:Lerp(Color3.new(1,1,1), 0.15))
-	setupHover(closeBtn, CONFIG.Theme.Close, CONFIG.Theme.Close:Lerp(Color3.new(1,1,1), 0.15))
+	setupHover(minimizeBtn, CONFIG.Theme.Minimize, CONFIG.Theme.Minimize:Lerp(Color3.new(1,1,1), 0.15), "Minimize window")
+	setupHover(closeBtn, CONFIG.Theme.Close, CONFIG.Theme.Close:Lerp(Color3.new(1,1,1), 0.15), "Close window")
 	
 	local originalSize = UDim2.new(0, windowSize.X, 0, windowSize.Y)
 	local originalShadowSize = UDim2.new(0, windowSize.X + 20, 0, windowSize.Y + 20)
-	local minSize = UDim2.new(0, windowSize.X, 0, 45)
+	local originalPosition = mainFrame.Position
+	local minSize = UDim2.new(0, windowSize.X, 0, 45) -- Header height only
 	local minShadowSize = UDim2.new(0, windowSize.X + 20, 0, 45 + 20)
 
 	function window:Minimize()
@@ -316,15 +466,42 @@ function CrimsonUI:CreateWindow(options)
 		minimizeBtn.Text = "+"
 		tabContainer.Visible = false
 		contentContainer.Visible = false
-		Tween(mainFrame, {Size = minSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-		Tween(shadow, {Size = minShadowSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+		
+		-- Store current position before minimizing
+		originalPosition = mainFrame.Position
+		
+		-- Calculate collapsed position (move UP so only header is visible at bottom)
+		local currentPos = mainFrame.Position
+		local collapseOffset = (windowSize.Y - 45) / 2 -- Half of content height to shift up
+		
+		Tween(mainFrame, {
+			Size = minSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, currentPos.Y.Offset - collapseOffset)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+		
+		Tween(shadow, {
+			Size = minShadowSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, currentPos.Y.Offset - collapseOffset)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 	end
 	
 	function window:Maximize()
 		window.IsMinimized = false
 		minimizeBtn.Text = "−"
-		Tween(mainFrame, {Size = originalSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-		Tween(shadow, {Size = originalShadowSize}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		
+		local currentPos = mainFrame.Position
+		local expandOffset = (windowSize.Y - 45) / 2 -- Half of content height to shift down
+		
+		Tween(mainFrame, {
+			Size = originalSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, currentPos.Y.Offset + expandOffset)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		
+		Tween(shadow, {
+			Size = originalShadowSize,
+			Position = UDim2.new(currentPos.X.Scale, currentPos.X.Offset, currentPos.Y.Scale, currentPos.Y.Offset + expandOffset)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		
 		task.delay(0.1, function()
 			tabContainer.Visible = true
 			contentContainer.Visible = true
@@ -368,6 +545,9 @@ function CrimsonUI:CreateWindow(options)
 			Create("UICorner", { CornerRadius = UDim.new(0, 6) }),
 			Create("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
 		})
+		
+		-- Add tooltip for tab
+		SetupTooltip(tabBtn, "Switch to " .. tabName .. " tab", screenGui)
 		
 		local scrollFrame = Create("ScrollingFrame", {
 			Name = "Content_" .. tabName,
@@ -421,6 +601,7 @@ function CrimsonUI:CreateWindow(options)
 		function tab:CreateButton(options)
 			local btnName = options.Name or "Button"
 			local callback = options.Callback or function() end
+			local tooltipText = options.Tooltip or options.Description or nil
 			
 			local btnFrame = Create("TextButton", {
 				Name = btnName,
@@ -443,7 +624,7 @@ function CrimsonUI:CreateWindow(options)
 				})
 			})
 			
-			setupHover(btnFrame, CONFIG.Theme.Surface, CONFIG.Theme.SurfaceHover)
+			setupHover(btnFrame, CONFIG.Theme.Surface, CONFIG.Theme.SurfaceHover, tooltipText)
 			
 			btnFrame.MouseButton1Click:Connect(function()
 				-- Click bounce
@@ -459,6 +640,7 @@ function CrimsonUI:CreateWindow(options)
 			local togName = options.Name or "Toggle"
 			local default = options.Default or false
 			local callback = options.Callback or function() end
+			local tooltipText = options.Tooltip or options.Description or nil
 			
 			local state = default
 			
@@ -482,6 +664,10 @@ function CrimsonUI:CreateWindow(options)
 					TextXAlignment = Enum.TextXAlignment.Left
 				})
 			})
+			
+			if tooltipText then
+				SetupTooltip(toggleFrame, tooltipText, screenGui)
+			end
 			
 			local titleText = toggleFrame:FindFirstChildOfClass("TextLabel")
 			
@@ -523,6 +709,7 @@ function CrimsonUI:CreateWindow(options)
 			local max = options.Max or 100
 			local default = options.Default or min
 			local callback = options.Callback or function() end
+			local tooltipText = options.Tooltip or options.Description or nil
 			
 			local val = default
 			
@@ -533,6 +720,10 @@ function CrimsonUI:CreateWindow(options)
 				BackgroundColor3 = CONFIG.Theme.Surface,
 				BorderSizePixel = 0
 			}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+			
+			if tooltipText then
+				SetupTooltip(sliderFrame, tooltipText, screenGui)
+			end
 			
 			local titleText = Create("TextLabel", {
 				Parent = sliderFrame,
@@ -579,8 +770,12 @@ function CrimsonUI:CreateWindow(options)
 				AnchorPoint = Vector2.new(0.5, 0.5),
 				Position = UDim2.new(1, 0, 0.5, 0),
 				Size = UDim2.new(0, 12, 0, 12),
-				BackgroundColor3 = Color3.new(1, 1, 1)
+				BackgroundColor3 = Color3.new(1, 1, 1),
+				ZIndex = 10 -- Higher z-index for tooltip
 			}, { Create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
+			
+			-- Add tooltip to knob showing current value
+			SetupTooltip(knob, "Value: " .. tostring(val), screenGui)
 			
 			local dragging = false
 			
@@ -589,6 +784,15 @@ function CrimsonUI:CreateWindow(options)
 				val = math.floor(min + (max - min) * percent)
 				valText.Text = tostring(val)
 				Tween(fill, {Size = UDim2.new(percent, 0, 1, 0)}, 0.1)
+				
+				-- Update tooltip text dynamically
+				if activeTooltip and activeTooltip.Parent then
+					local tooltipLabel = activeTooltip:FindFirstChildOfClass("TextLabel")
+					if tooltipLabel then
+						tooltipLabel.Text = "Value: " .. tostring(val)
+					end
+				end
+				
 				pcall(callback, val)
 			end
 			
@@ -617,6 +821,7 @@ function CrimsonUI:CreateWindow(options)
 			local list = options.Options or {}
 			local default = options.Default
 			local callback = options.Callback or function() end
+			local tooltipText = options.Tooltip or options.Description or nil
 			
 			local selected = default or "Select..."
 			local expanded = false
@@ -628,6 +833,10 @@ function CrimsonUI:CreateWindow(options)
 				BackgroundColor3 = CONFIG.Theme.Surface,
 				ClipsDescendants = true
 			}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+			
+			if tooltipText then
+				SetupTooltip(dropFrame, tooltipText, screenGui)
+			end
 			
 			local headerBtn = Create("TextButton", {
 				Parent = dropFrame,
@@ -750,6 +959,7 @@ function CrimsonUI:CreateWindow(options)
 			local inpName = options.Name or "Input"
 			local placeholder = options.Placeholder or "Type here..."
 			local callback = options.Callback or function() end
+			local tooltipText = options.Tooltip or options.Description or nil
 			
 			local inputFrame = Create("Frame", {
 				Parent = tab.Container,
@@ -757,6 +967,10 @@ function CrimsonUI:CreateWindow(options)
 				BackgroundColor3 = CONFIG.Theme.Surface,
 				BorderSizePixel = 0
 			}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+			
+			if tooltipText then
+				SetupTooltip(inputFrame, tooltipText, screenGui)
+			end
 			
 			Create("TextLabel", {
 				Parent = inputFrame,
