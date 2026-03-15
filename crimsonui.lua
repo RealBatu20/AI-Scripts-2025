@@ -1,3 +1,5 @@
+-- INSTALLATION: local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/RealBatu20/AI-Scripts-2025/refs/heads/main/crimsonui.lua"))()
+
 --!strict
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -8,16 +10,17 @@ local RunService = game:GetService("RunService")
 local CrimsonUI = {
 	Version = "1.0.0",
 	Windows = {},
-	ActiveLoops = {} -- Track active loops for cleanup
+	ActiveConnections = {},
+	IsRunning = true
 }
 
--- Aspect ratio definitions
+-- Aspect ratio configurations
 local ASPECT_RATIOS = {
-	{ Name = "16:9", Ratio = 16/9, Desc = "Widescreen" },
-	{ Name = "9:16", Ratio = 9/16, Desc = "Vertical" },
-	{ Name = "1:1", Ratio = 1, Desc = "Square" },
-	{ Name = "4:3", Ratio = 4/3, Desc = "Classic" },
-	{ Name = "3:2", Ratio = 3/2, Desc = "Photography" }
+	["16:9"] = { Width = 16, Height = 9, Name = "Widescreen" },
+	["9:16"] = { Width = 9, Height = 16, Name = "Vertical" },
+	["1:1"] = { Width = 1, Height = 1, Name = "Square" },
+	["4:3"] = { Width = 4, Height = 3, Name = "Classic" },
+	["3:2"] = { Width = 3, Height = 2, Name = "Photography" }
 }
 
 -- Theme configuration
@@ -33,6 +36,7 @@ local CONFIG = {
 		TextDark = Color3.fromRGB(120, 120, 130),
 		Close = Color3.fromRGB(237, 66, 69),
 		Minimize = Color3.fromRGB(88, 101, 242),
+		Shadow = Color3.fromRGB(0, 0, 0),
 		Border = Color3.fromRGB(50, 50, 65),
 		InnerShadow = Color3.fromRGB(0, 0, 0)
 	},
@@ -47,7 +51,7 @@ local CONFIG = {
 	}
 }
 
--- Utility to create instances
+-- Utility to create instances cleanly
 local function Create(className, properties, children)
 	local inst = Instance.new(className)
 	for k, v in pairs(properties or {}) do
@@ -75,82 +79,40 @@ end
 
 -- Create inner shadow effect for 3D depth
 local function CreateInnerShadow(parent, radius)
-	radius = radius or UDim.new(0, 8)
-	return Create("Frame", {
+	local shadow = Create("ImageLabel", {
 		Name = "InnerShadow",
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Image = "rbxassetid://1316045217",
+		ImageColor3 = CONFIG.Theme.InnerShadow,
+		ImageTransparency = 0.7,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(10, 10, 118, 118),
+		ZIndex = parent.ZIndex + 1
+	})
+	
+	-- Inset shadow by using negative scale trick with clipping
+	local shadowContainer = Create("Frame", {
+		Name = "ShadowContainer",
 		Parent = parent,
 		Size = UDim2.new(1, 0, 1, 0),
 		BackgroundTransparency = 1,
+		ClipsDescendants = true,
 		ZIndex = parent.ZIndex + 1
 	}, {
-		Create("UICorner", { CornerRadius = radius }),
-		-- Top shadow (darker at top)
+		Create("UICorner", { CornerRadius = UDim.new(0, radius or 8) }),
 		Create("Frame", {
-			Name = "TopShadow",
-			Size = UDim2.new(1, 0, 0, 20),
-			BackgroundColor3 = CONFIG.Theme.InnerShadow,
-			BackgroundTransparency = 0.9,
-			BorderSizePixel = 0
+			Name = "ShadowFrame",
+			Position = UDim2.new(0, -10, 0, -10),
+			Size = UDim2.new(1, 20, 1, 20),
+			BackgroundTransparency = 1,
+			ClipsDescendants = false
 		}, {
-			Create("UIGradient", {
-				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.3),
-					NumberSequenceKeypoint.new(1, 1)
-				}),
-				Rotation = 90
-			})
-		}),
-		-- Bottom shadow (darker at bottom)
-		Create("Frame", {
-			Name = "BottomShadow",
-			Position = UDim2.new(0, 0, 1, -20),
-			Size = UDim2.new(1, 0, 0, 20),
-			BackgroundColor3 = CONFIG.Theme.InnerShadow,
-			BackgroundTransparency = 0.9,
-			BorderSizePixel = 0
-		}, {
-			Create("UIGradient", {
-				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 1),
-					NumberSequenceKeypoint.new(1, 0.4)
-				}),
-				Rotation = 90
-			})
-		}),
-		-- Left shadow
-		Create("Frame", {
-			Name = "LeftShadow",
-			Size = UDim2.new(0, 15, 1, 0),
-			BackgroundColor3 = CONFIG.Theme.InnerShadow,
-			BackgroundTransparency = 0.9,
-			BorderSizePixel = 0
-		}, {
-			Create("UIGradient", {
-				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.3),
-					NumberSequenceKeypoint.new(1, 1)
-				}),
-				Rotation = 0
-			})
-		}),
-		-- Right shadow
-		Create("Frame", {
-			Name = "RightShadow",
-			Position = UDim2.new(1, -15, 0, 0),
-			Size = UDim2.new(0, 15, 1, 0),
-			BackgroundColor3 = CONFIG.Theme.InnerShadow,
-			BackgroundTransparency = 0.9,
-			BorderSizePixel = 0
-		}, {
-			Create("UIGradient", {
-				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 1),
-					NumberSequenceKeypoint.new(1, 0.3)
-				}),
-				Rotation = 0
-			})
+			shadow
 		})
 	})
+	
+	return shadowContainer
 end
 
 -- Clean up existing instances if re-executed
@@ -171,7 +133,7 @@ local screenGui = Create("ScreenGui", {
 	IgnoreGuiInset = true
 })
 
--- Attempt to parent to CoreGui
+-- Attempt to parent to CoreGui to bypass standard anti-cheats scanning PlayerGui
 local success = pcall(function() screenGui.Parent = CoreGui end)
 if not success then
 	screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -179,75 +141,64 @@ end
 getgenv().CrimsonUI_Instance = screenGui
 
 -- Global cleanup function
-getgenv().CrimsonUI_Cleanup = function()
-	for _, loop in pairs(CrimsonUI.ActiveLoops) do
-		if typeof(loop) == "RBXScriptConnection" then
-			pcall(function() loop:Disconnect() end)
-		elseif typeof(loop) == "thread" then
-			pcall(function() task.cancel(loop) end)
+local function Cleanup()
+	CrimsonUI.IsRunning = false
+	for _, conn in ipairs(CrimsonUI.ActiveConnections) do
+		if conn then
+			pcall(function() conn:Disconnect() end)
 		end
 	end
-	CrimsonUI.ActiveLoops = {}
+	CrimsonUI.ActiveConnections = {}
 	
-	-- Trigger all toggle off callbacks
-	for windowId, windowData in pairs(CrimsonUI.Windows) do
-		if windowData.Toggles then
-			for toggleId, toggleData in pairs(windowData.Toggles) do
-				if toggleData.State and toggleData.Callback then
-					pcall(toggleData.Callback, false)
+	-- Turn off all active toggles
+	for _, window in ipairs(CrimsonUI.Windows) do
+		if window.ActiveToggles then
+			for toggleName, toggleData in pairs(window.ActiveToggles) do
+				if toggleData and toggleData.SetState then
+					pcall(function() toggleData.SetState(false) end)
 				end
 			end
 		end
 	end
-	CrimsonUI.Windows = {}
 end
+
+getgenv().CrimsonUI_Cleanup = Cleanup
 
 function CrimsonUI:CreateWindow(options)
 	options = options or {}
 	local title = options.Title or "Crimson Window"
-	local icon = options.Icon or "🎲"
-	local baseWidth = options.Width or 400
-	local baseHeight = options.Height or 500
+	local icon = options.Icon or ""
+	local baseSize = options.Size or Vector2.new(400, 500)
+	local currentAspectRatio = "16:9"
+	local isMinimized = false
+	
+	-- Calculate initial size based on aspect ratio
+	local function CalculateSize(ratioKey, height)
+		local ratio = ASPECT_RATIOS[ratioKey]
+		local width = height * (ratio.Width / ratio.Height)
+		return Vector2.new(width, height)
+	end
+	
+	local windowSize = CalculateSize(currentAspectRatio, baseSize.Y)
 	
 	local window = {
 		Tabs = {},
 		CurrentTab = nil,
 		IsMinimized = false,
-		CurrentAspect = ASPECT_RATIOS[1], -- Default 16:9
-		Toggles = {}, -- Track toggles for cleanup
-		Id = tostring(math.random(100000, 999999))
+		ActiveToggles = {},
+		CurrentRatio = currentAspectRatio,
+		BaseHeight = baseSize.Y
 	}
 	
-	CrimsonUI.Windows[window.Id] = window
+	table.insert(CrimsonUI.Windows, window)
 	
-	-- Calculate size based on aspect ratio
-	local function CalculateSize(aspectData, isMinimized)
-		if isMinimized then
-			-- When minimized, maintain aspect ratio but collapse to header only
-			local headerHeight = 45
-			local minWidth = math.max(300, headerHeight * aspectData.Ratio)
-			return Vector2.new(minWidth, headerHeight)
-		end
-		
-		local width = baseWidth
-		local height = width / aspectData.Ratio
-		-- Clamp height to reasonable bounds
-		if height > baseHeight then
-			height = baseHeight
-			width = height * aspectData.Ratio
-		end
-		return Vector2.new(width, height)
-	end
-	
-	local currentSize = CalculateSize(window.CurrentAspect, false)
-	
-	-- Main Frame (no shadow)
+	-- Main Frame
 	local mainFrame = Create("Frame", {
 		Name = "MainFrame",
 		Parent = screenGui,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.5, 0),
-		Size = UDim2.new(0, currentSize.X, 0, 0), -- Start collapsed for intro
+		Size = UDim2.new(0, windowSize.X, 0, 0), -- Start collapsed for intro
 		BackgroundColor3 = CONFIG.Theme.Background,
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -257,7 +208,8 @@ function CrimsonUI:CreateWindow(options)
 		Create("UIStroke", { Color = CONFIG.Theme.Border, Thickness = 1.5 })
 	})
 	
-	CreateInnerShadow(mainFrame, UDim.new(0, 12))
+	-- Add inner shadow to main frame
+	CreateInnerShadow(mainFrame, 12)
 	
 	-- Header
 	local header = Create("Frame", {
@@ -276,6 +228,7 @@ function CrimsonUI:CreateWindow(options)
 			BorderSizePixel = 0,
 			ZIndex = 2
 		}),
+		CreateInnerShadow(nil, 12), -- Will be parented properly below
 		Create("TextLabel", {
 			Name = "Icon",
 			Size = UDim2.new(0, 30, 0, 30),
@@ -289,7 +242,7 @@ function CrimsonUI:CreateWindow(options)
 		}),
 		Create("TextLabel", {
 			Name = "Title",
-			Size = UDim2.new(1, -200, 1, 0),
+			Size = UDim2.new(1, -180, 1, 0),
 			Position = UDim2.new(0, 45, 0, 0),
 			BackgroundTransparency = 1,
 			Text = title,
@@ -301,13 +254,17 @@ function CrimsonUI:CreateWindow(options)
 		})
 	})
 	
-	CreateInnerShadow(header, UDim.new(0, 12))
+	-- Fix inner shadow parenting for header
+	local headerShadow = header:FindFirstChild("ShadowContainer")
+	if headerShadow then
+		headerShadow.Parent = header
+		headerShadow.ZIndex = 3
+	end
 	
-	-- Controls container (Aspect, Minimize, Close)
 	local controls = Create("Frame", {
 		Name = "Controls",
 		Parent = header,
-		Size = UDim2.new(0, 140, 0, 30),
+		Size = UDim2.new(0, 130, 0, 30),
 		Position = UDim2.new(1, -10, 0.5, 0),
 		AnchorPoint = Vector2.new(1, 0.5),
 		BackgroundTransparency = 1,
@@ -321,23 +278,32 @@ function CrimsonUI:CreateWindow(options)
 		})
 	})
 	
-	-- Aspect Ratio Button (cycles through ratios)
-	local aspectIndex = 1
+	-- Aspect Ratio Button (cycling button)
+	local aspectKeys = {"16:9", "9:16", "1:1", "4:3", "3:2"}
+	local currentAspectIndex = 1
+	
 	local aspectBtn = Create("TextButton", {
 		Name = "AspectRatio",
 		Parent = controls,
-		Size = UDim2.new(0, 50, 0, 30),
-		BackgroundColor3 = CONFIG.Theme.SurfaceHover,
-		Text = ASPECT_RATIOS[1].Name,
-		TextColor3 = CONFIG.Theme.Text,
+		Size = UDim2.new(0, 50, 0, 26),
+		BackgroundColor3 = CONFIG.Theme.Background,
+		Text = currentAspectRatio,
+		TextColor3 = CONFIG.Theme.TextMuted,
 		Font = Enum.Font.GothamBold,
 		TextSize = 12,
 		AutoButtonColor = false,
-		LayoutOrder = 1,
+		LayoutOrder = 0,
 		ZIndex = 4
-	}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+	}, { 
+		Create("UICorner", { CornerRadius = UDim.new(0, 6) }),
+		CreateInnerShadow(nil, 6)
+	})
 	
-	CreateInnerShadow(aspectBtn, UDim.new(0, 8))
+	local aspectShadow = aspectBtn:FindFirstChild("ShadowContainer")
+	if aspectShadow then
+		aspectShadow.Parent = aspectBtn
+		aspectShadow.ZIndex = 5
+	end
 	
 	local minimizeBtn = Create("TextButton", {
 		Name = "Minimize",
@@ -349,11 +315,18 @@ function CrimsonUI:CreateWindow(options)
 		Font = Enum.Font.GothamBold,
 		TextSize = 20,
 		AutoButtonColor = false,
-		LayoutOrder = 2,
+		LayoutOrder = 1,
 		ZIndex = 4
-	}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+	}, { 
+		Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
+		CreateInnerShadow(nil, 8)
+	})
 	
-	CreateInnerShadow(minimizeBtn, UDim.new(0, 8))
+	local minShadow = minimizeBtn:FindFirstChild("ShadowContainer")
+	if minShadow then
+		minShadow.Parent = minimizeBtn
+		minShadow.ZIndex = 5
+	end
 	
 	local closeBtn = Create("TextButton", {
 		Name = "Close",
@@ -363,13 +336,20 @@ function CrimsonUI:CreateWindow(options)
 		Text = "×",
 		TextColor3 = CONFIG.Theme.Text,
 		Font = Enum.Font.GothamBold,
-		TextSize = 16,
+		TextSize = 18,
 		AutoButtonColor = false,
-		LayoutOrder = 3,
+		LayoutOrder = 2,
 		ZIndex = 4
-	}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+	}, { 
+		Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
+		CreateInnerShadow(nil, 8)
+	})
 	
-	CreateInnerShadow(closeBtn, UDim.new(0, 8))
+	local closeShadow = closeBtn:FindFirstChild("ShadowContainer")
+	if closeShadow then
+		closeShadow.Parent = closeBtn
+		closeShadow.ZIndex = 5
+	end
 	
 	local tabContainer = Create("Frame", {
 		Name = "TabContainer",
@@ -396,22 +376,24 @@ function CrimsonUI:CreateWindow(options)
 		ZIndex = 2
 	})
 	
-	-- Drag Logic
+	-- Drag & Interaction Logic
 	local isDragging = false
 	local dragStart, startPos
 	local dragStartTime = 0
 	local dragStartMousePos = Vector2.zero
 	local hasDragged = false
 
-	header.InputBegan:Connect(function(input)
+	local dragConnection1 = header.InputBegan:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			local mousePos = UserInputService:GetMouseLocation()
-			for _, btn in ipairs({aspectBtn, minimizeBtn, closeBtn}) do
-				local absPos, absSize = btn.AbsolutePosition, btn.AbsoluteSize
-				if mousePos.X >= absPos.X and mousePos.X <= absPos.X + absSize.X and
-				   mousePos.Y >= absPos.Y and mousePos.Y <= absPos.Y + absSize.Y then
-					return
-				end
+			local minAbs, minSize = minimizeBtn.AbsolutePosition, minimizeBtn.AbsoluteSize
+			local closeAbs, closeSize = closeBtn.AbsolutePosition, closeBtn.AbsoluteSize
+			local aspectAbs, aspectSize = aspectBtn.AbsolutePosition, aspectBtn.AbsoluteSize
+			
+			if (mousePos.X >= minAbs.X and mousePos.X <= minAbs.X + minSize.X and mousePos.Y >= minAbs.Y and mousePos.Y <= minAbs.Y + minSize.Y) or
+			   (mousePos.X >= closeAbs.X and mousePos.X <= closeAbs.X + closeSize.X and mousePos.Y >= closeAbs.Y and mousePos.Y <= closeAbs.Y + closeSize.Y) or
+			   (mousePos.X >= aspectAbs.X and mousePos.X <= aspectAbs.X + aspectSize.X and mousePos.Y >= aspectAbs.Y and mousePos.Y <= aspectAbs.Y + aspectSize.Y) then
+				return
 			end
 			
 			isDragging = true
@@ -423,8 +405,9 @@ function CrimsonUI:CreateWindow(options)
 			screenGui.DisplayOrder = screenGui.DisplayOrder + 1
 		end
 	end)
+	table.insert(CrimsonUI.ActiveConnections, dragConnection1)
 
-	UserInputService.InputChanged:Connect(function(input)
+	local dragConnection2 = UserInputService.InputChanged:Connect(function(input)
 		if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 			local currentPos = Vector2.new(input.Position.X, input.Position.Y)
 			local distanceMoved = (currentPos - dragStartMousePos).Magnitude
@@ -432,12 +415,15 @@ function CrimsonUI:CreateWindow(options)
 			if distanceMoved > CONFIG.Drag.ClickThreshold then
 				hasDragged = true
 				local delta = input.Position - dragStart
-				mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+				local newX = startPos.X.Offset + delta.X
+				local newY = startPos.Y.Offset + delta.Y
+				mainFrame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
 			end
 		end
 	end)
+	table.insert(CrimsonUI.ActiveConnections, dragConnection2)
 
-	UserInputService.InputEnded:Connect(function(input)
+	local dragConnection3 = UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 			if not isDragging then return end
 			isDragging = false
@@ -447,98 +433,131 @@ function CrimsonUI:CreateWindow(options)
 			end
 		end
 	end)
+	table.insert(CrimsonUI.ActiveConnections, dragConnection3)
 	
 	-- Button Hovers
 	local function setupHover(btn, normalColor, hoverColor)
-		local gradient = btn:FindFirstChildOfClass("UIGradient")
+		local shadow = btn:FindFirstChild("ShadowContainer")
 		btn.MouseEnter:Connect(function() 
 			Tween(btn, {BackgroundColor3 = hoverColor}, 0.2) 
+			if shadow then
+				Tween(shadow:FindFirstChild("InnerShadow"), {ImageTransparency = 0.5}, 0.2)
+			end
 		end)
 		btn.MouseLeave:Connect(function() 
 			Tween(btn, {BackgroundColor3 = normalColor}, 0.2) 
+			if shadow then
+				Tween(shadow:FindFirstChild("InnerShadow"), {ImageTransparency = 0.7}, 0.2)
+			end
 		end)
 	end
 	
-	setupHover(aspectBtn, CONFIG.Theme.SurfaceHover, CONFIG.Theme.SurfaceHover:Lerp(Color3.new(1,1,1), 0.2))
 	setupHover(minimizeBtn, CONFIG.Theme.Minimize, CONFIG.Theme.Minimize:Lerp(Color3.new(1,1,1), 0.15))
 	setupHover(closeBtn, CONFIG.Theme.Close, CONFIG.Theme.Close:Lerp(Color3.new(1,1,1), 0.15))
+	setupHover(aspectBtn, CONFIG.Theme.Background, CONFIG.Theme.SurfaceHover)
 	
-	-- Aspect Ratio Logic
-	aspectBtn.MouseButton1Click:Connect(function()
-		aspectIndex = aspectIndex % #ASPECT_RATIOS + 1
-		window.CurrentAspect = ASPECT_RATIOS[aspectIndex]
-		aspectBtn.Text = window.CurrentAspect.Name
+	-- Aspect Ratio Logic with smooth transition
+	local function UpdateAspectRatio(newRatioKey)
+		if not CrimsonUI.IsRunning then return end
 		
+		currentAspectIndex = table.find(aspectKeys, newRatioKey) or 1
+		window.CurrentRatio = newRatioKey
+		
+		local ratio = ASPECT_RATIOS[newRatioKey]
+		local newWidth = window.BaseHeight * (ratio.Width / ratio.Height)
+		
+		-- Animate size change
 		if not window.IsMinimized then
-			local newSize = CalculateSize(window.CurrentAspect, false)
 			Tween(mainFrame, {
-				Size = UDim2.new(0, newSize.X, 0, newSize.Y)
-			}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
-		else
-			local minSize = CalculateSize(window.CurrentAspect, true)
-			Tween(mainFrame, {
-				Size = UDim2.new(0, minSize.X, 0, minSize.Y)
+				Size = UDim2.new(0, newWidth, 0, window.BaseHeight)
 			}, 0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 		end
+		
+		aspectBtn.Text = newRatioKey
+	end
+	
+	aspectBtn.MouseButton1Click:Connect(function()
+		currentAspectIndex = currentAspectIndex % #aspectKeys + 1
+		UpdateAspectRatio(aspectKeys[currentAspectIndex])
 	end)
 	
-	-- Minimize/Maximize with aspect ratio preservation
+	-- Minimize/Maximize with new animation (slide up into title bar)
+	local originalSize = UDim2.new(0, windowSize.X, 0, windowSize.Y)
+	local minimizedSize = UDim2.new(0, 180, 0, 45) -- Only show title bar width, header height
+	
 	function window:Minimize()
+		if not CrimsonUI.IsRunning then return end
 		window.IsMinimized = true
 		minimizeBtn.Text = "+"
 		tabContainer.Visible = false
 		contentContainer.Visible = false
 		
-		local minSize = CalculateSize(window.CurrentAspect, true)
-		-- Animate up into title bar (move up while shrinking)
+		-- Slide up and shrink to title bar only
+		local currentWidth = mainFrame.Size.X.Offset
 		Tween(mainFrame, {
-			Size = UDim2.new(0, minSize.X, 0, minSize.Y),
-			Position = UDim2.new(mainFrame.Position.X.Scale, mainFrame.Position.X.Offset, mainFrame.Position.Y.Scale, mainFrame.Position.Y.Offset - 50)
-		}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.In)
+			Size = UDim2.new(0, 200, 0, 45),
+			Position = UDim2.new(
+				mainFrame.Position.X.Scale, 
+				mainFrame.Position.X.Offset, 
+				mainFrame.Position.Y.Scale, 
+				mainFrame.Position.Y.Offset - (window.BaseHeight / 2) + 22.5
+			)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.In)
 	end
 	
 	function window:Maximize()
+		if not CrimsonUI.IsRunning then return end
 		window.IsMinimized = false
 		minimizeBtn.Text = "−"
-		tabContainer.Visible = true
-		contentContainer.Visible = true
 		
-		local maxSize = CalculateSize(window.CurrentAspect, false)
-		-- Animate down from title bar (move down while expanding)
+		local ratio = ASPECT_RATIOS[window.CurrentRatio]
+		local targetWidth = window.BaseHeight * (ratio.Width / ratio.Height)
+		
+		-- Return to center and restore size
 		Tween(mainFrame, {
-			Size = UDim2.new(0, maxSize.X, 0, maxSize.Y),
-			Position = UDim2.new(mainFrame.Position.X.Scale, mainFrame.Position.X.Offset, mainFrame.Position.Y.Scale, mainFrame.Position.Y.Offset + 50)
-		}, 0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+			Size = UDim2.new(0, targetWidth, 0, window.BaseHeight),
+			Position = UDim2.new(0.5, 0, 0.5, 0)
+		}, CONFIG.Animation.Speed, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+		
+		task.delay(0.1, function()
+			if CrimsonUI.IsRunning then
+				tabContainer.Visible = true
+				contentContainer.Visible = true
+			end
+		end)
 	end
 	
 	minimizeBtn.MouseButton1Click:Connect(function()
-		if window.IsMinimized then window:Maximize() else window:Minimize() end
+		if window.IsMinimized then 
+			window:Maximize() 
+		else 
+			window:Minimize() 
+		end
 	end)
 	
 	-- Close with cleanup
 	closeBtn.MouseButton1Click:Connect(function()
-		-- Trigger cleanup
-		if getgenv().CrimsonUI_Cleanup then
-			getgenv().CrimsonUI_Cleanup()
+		-- Turn off all toggles first
+		for toggleName, toggleData in pairs(window.ActiveToggles) do
+			if toggleData and toggleData.SetState then
+				pcall(function() toggleData.SetState(false) end)
+			end
 		end
 		
 		-- Animate out
 		Tween(mainFrame, {
 			Size = UDim2.new(0, 0, 0, 0),
 			Position = UDim2.new(mainFrame.Position.X.Scale, mainFrame.Position.X.Offset, mainFrame.Position.Y.Scale, mainFrame.Position.Y.Offset + 100)
-		}, 0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
+		}, 0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.In)
 		
-		task.delay(0.35, function() 
-			screenGui:Destroy() 
-			getgenv().CrimsonUI_Instance = nil
-			getgenv().CrimsonUI_Cleanup = nil
+		task.delay(0.3, function()
+			Cleanup()
+			screenGui:Destroy()
 		end)
 	end)
 	
 	-- Intro Animation
-	Tween(mainFrame, {
-		Size = UDim2.new(0, currentSize.X, 0, currentSize.Y)
-	}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	Tween(mainFrame, {Size = UDim2.new(0, windowSize.X, 0, windowSize.Y)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 	-- API: Create Tab
 	function window:CreateTab(tabName)
@@ -558,10 +577,15 @@ function CrimsonUI:CreateWindow(options)
 			ZIndex = 3
 		}, { 
 			Create("UICorner", { CornerRadius = UDim.new(0, 6) }),
+			CreateInnerShadow(nil, 6),
 			Create("UIPadding", { PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10) })
 		})
 		
-		CreateInnerShadow(tabBtn, UDim.new(0, 6))
+		local tabShadow = tabBtn:FindFirstChild("ShadowContainer")
+		if tabShadow then
+			tabShadow.Parent = tabBtn
+			tabShadow.ZIndex = 4
+		end
 		
 		local scrollFrame = Create("ScrollingFrame", {
 			Name = "Content_" .. tabName,
@@ -588,7 +612,7 @@ function CrimsonUI:CreateWindow(options)
 		tab.Container = scrollFrame
 		
 		local function SelectThisTab()
-			if window.CurrentTab == tab then return end
+			if window.CurrentTab == tab or not CrimsonUI.IsRunning then return end
 			window.CurrentTab = tab
 			
 			for _, child in ipairs(tabContainer:GetChildren()) do
@@ -610,7 +634,7 @@ function CrimsonUI:CreateWindow(options)
 			SelectThisTab()
 		end
 
-		-- API: Gradient Button (from previous update)
+		-- API: Elements with Inner Shadows
 		function tab:CreateButton(options)
 			local btnName = options.Name or "Button"
 			local callback = options.Callback or function() end
@@ -646,6 +670,7 @@ function CrimsonUI:CreateWindow(options)
 					}),
 					Rotation = 0
 				}),
+				CreateInnerShadow(nil, 10),
 				Create("TextLabel", {
 					Name = "Icon",
 					Position = UDim2.new(0, 15, 0.5, 0),
@@ -673,7 +698,11 @@ function CrimsonUI:CreateWindow(options)
 				})
 			})
 			
-			CreateInnerShadow(btnFrame, UDim.new(0, 10))
+			local btnShadow = btnFrame:FindFirstChild("ShadowContainer")
+			if btnShadow then
+				btnShadow.Parent = btnFrame
+				btnShadow.ZIndex = 5
+			end
 			
 			local gradient = btnFrame:FindFirstChildOfClass("UIGradient")
 			local originalColor = gradient.Color
@@ -698,7 +727,9 @@ function CrimsonUI:CreateWindow(options)
 				task.delay(0.08, function()
 					Tween(btnFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 				end)
-				pcall(callback)
+				if CrimsonUI.IsRunning then
+					pcall(callback)
+				end
 			end)
 		end
 
@@ -706,18 +737,12 @@ function CrimsonUI:CreateWindow(options)
 			local togName = options.Name or "Toggle"
 			local default = options.Default or false
 			local callback = options.Callback or function() end
-			local toggleId = tostring(math.random(100000, 999999))
 			
 			local state = default
-			
-			-- Register toggle for cleanup
-			window.Toggles[toggleId] = {
-				State = state,
-				Callback = callback
-			}
+			local toggleId = tostring(math.random(100000, 999999))
 			
 			local toggleFrame = Create("TextButton", {
-				Name = togName,
+				Name = togName .. "_" .. toggleId,
 				Parent = tab.Container,
 				Size = UDim2.new(1, 0, 0, 35),
 				BackgroundColor3 = CONFIG.Theme.Surface,
@@ -725,6 +750,7 @@ function CrimsonUI:CreateWindow(options)
 				AutoButtonColor = false
 			}, {
 				Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
+				CreateInnerShadow(nil, 8),
 				Create("TextLabel", {
 					Position = UDim2.new(0, 10, 0, 0),
 					Size = UDim2.new(1, -60, 1, 0),
@@ -737,7 +763,11 @@ function CrimsonUI:CreateWindow(options)
 				})
 			})
 			
-			CreateInnerShadow(toggleFrame, UDim.new(0, 8))
+			local tShadow = toggleFrame:FindFirstChild("ShadowContainer")
+			if tShadow then
+				tShadow.Parent = toggleFrame
+				tShadow.ZIndex = 5
+			end
 			
 			local titleText = toggleFrame:FindFirstChildOfClass("TextLabel")
 			
@@ -757,22 +787,29 @@ function CrimsonUI:CreateWindow(options)
 				BackgroundColor3 = Color3.new(1, 1, 1)
 			}, { Create("UICorner", { CornerRadius = UDim.new(1, 0) }) })
 			
-			local function UpdateToggle()
+			local function SetState(newState)
+				if not CrimsonUI.IsRunning then 
+					state = false
+					return 
+				end
+				state = newState
 				Tween(switchBg, {BackgroundColor3 = state and CONFIG.Theme.Accent or CONFIG.Theme.Background}, 0.2)
 				Tween(switchKnob, {Position = UDim2.new(0, state and 20 or 2, 0.5, 0)}, 0.2, Enum.EasingStyle.Back)
 				Tween(titleText, {TextColor3 = state and CONFIG.Theme.Text or CONFIG.Theme.TextMuted}, 0.2)
-				
-				-- Update tracked state
-				window.Toggles[toggleId].State = state
 				pcall(callback, state)
 			end
 			
+			-- Register for cleanup
+			window.ActiveToggles[toggleId] = {
+				SetState = SetState,
+				GetState = function() return state end
+			}
+			
 			toggleFrame.MouseButton1Click:Connect(function()
-				state = not state
-				UpdateToggle()
+				SetState(not state)
 			end)
 			
-			if state then UpdateToggle() end
+			if state then SetState(true) end
 		end
 
 		function tab:CreateSlider(options)
@@ -790,9 +827,16 @@ function CrimsonUI:CreateWindow(options)
 				Size = UDim2.new(1, 0, 0, 50),
 				BackgroundColor3 = CONFIG.Theme.Surface,
 				BorderSizePixel = 0
-			}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+			}, { 
+				Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
+				CreateInnerShadow(nil, 8)
+			})
 			
-			CreateInnerShadow(sliderFrame, UDim.new(0, 8))
+			local sShadow = sliderFrame:FindFirstChild("ShadowContainer")
+			if sShadow then
+				sShadow.Parent = sliderFrame
+				sShadow.ZIndex = 5
+			end
 			
 			local titleText = Create("TextLabel", {
 				Parent = sliderFrame,
@@ -845,6 +889,7 @@ function CrimsonUI:CreateWindow(options)
 			local dragging = false
 			
 			local function UpdateSlider(input)
+				if not CrimsonUI.IsRunning then return end
 				local percent = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
 				val = math.floor(min + (max - min) * percent)
 				valText.Text = tostring(val)
@@ -852,24 +897,27 @@ function CrimsonUI:CreateWindow(options)
 				pcall(callback, val)
 			end
 			
-			track.InputBegan:Connect(function(input)
+			local sliderConn1 = track.InputBegan:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = true
 					UpdateSlider(input)
 				end
 			end)
+			table.insert(CrimsonUI.ActiveConnections, sliderConn1)
 			
-			UserInputService.InputEnded:Connect(function(input)
+			local sliderConn2 = UserInputService.InputEnded:Connect(function(input)
 				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 					dragging = false
 				end
 			end)
+			table.insert(CrimsonUI.ActiveConnections, sliderConn2)
 			
-			UserInputService.InputChanged:Connect(function(input)
+			local sliderConn3 = UserInputService.InputChanged:Connect(function(input)
 				if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
 					UpdateSlider(input)
 				end
 			end)
+			table.insert(CrimsonUI.ActiveConnections, sliderConn3)
 		end
 
 		function tab:CreateDropdown(options)
@@ -887,9 +935,16 @@ function CrimsonUI:CreateWindow(options)
 				Size = UDim2.new(1, 0, 0, 35),
 				BackgroundColor3 = CONFIG.Theme.Surface,
 				ClipsDescendants = true
-			}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+			}, { 
+				Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
+				CreateInnerShadow(nil, 8)
+			})
 			
-			CreateInnerShadow(dropFrame, UDim.new(0, 8))
+			local dShadow = dropFrame:FindFirstChild("ShadowContainer")
+			if dShadow then
+				dShadow.Parent = dropFrame
+				dShadow.ZIndex = 5
+			end
 			
 			local headerBtn = Create("TextButton", {
 				Parent = dropFrame,
@@ -969,6 +1024,7 @@ function CrimsonUI:CreateWindow(options)
 					end)
 					
 					optBtn.MouseButton1Click:Connect(function()
+						if not CrimsonUI.IsRunning then return end
 						selected = opt
 						selectedText.Text = selected
 						pcall(callback, selected)
@@ -982,6 +1038,7 @@ function CrimsonUI:CreateWindow(options)
 			end
 			
 			headerBtn.MouseButton1Click:Connect(function()
+				if not CrimsonUI.IsRunning then return end
 				expanded = not expanded
 				Tween(arrow, {Rotation = expanded and 180 or 0}, 0.2)
 				if expanded then
@@ -1017,9 +1074,16 @@ function CrimsonUI:CreateWindow(options)
 				Size = UDim2.new(1, 0, 0, 50),
 				BackgroundColor3 = CONFIG.Theme.Surface,
 				BorderSizePixel = 0
-			}, { Create("UICorner", { CornerRadius = UDim.new(0, 8) }) })
+			}, { 
+				Create("UICorner", { CornerRadius = UDim.new(0, 8) }),
+				CreateInnerShadow(nil, 8)
+			})
 			
-			CreateInnerShadow(inputFrame, UDim.new(0, 8))
+			local iShadow = inputFrame:FindFirstChild("ShadowContainer")
+			if iShadow then
+				iShadow.Parent = inputFrame
+				iShadow.ZIndex = 5
+			end
 			
 			Create("TextLabel", {
 				Parent = inputFrame,
@@ -1052,7 +1116,9 @@ function CrimsonUI:CreateWindow(options)
 			})
 			
 			textBox.FocusLost:Connect(function()
-				pcall(callback, textBox.Text)
+				if CrimsonUI.IsRunning then
+					pcall(callback, textBox.Text)
+				end
 			end)
 		end
 
@@ -1063,5 +1129,3 @@ function CrimsonUI:CreateWindow(options)
 end
 
 return CrimsonUI
-
--- INSTALLATION: local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/RealBatu20/AI-Scripts-2025/refs/heads/main/crimsonui.lua"))()
