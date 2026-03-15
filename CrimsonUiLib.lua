@@ -1,5 +1,5 @@
 --[[ INSTALLATION:
-local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/RealBatu20/AI-Scripts-2025/refs/heads/main/crimsonui.lua"))()
+local UI = loadstring(game:HttpGet("https://raw.githubusercontent.com/RealBatu20/AI-Scripts-2025/refs/heads/main/CrimsonUiLib.lua"))()
 ]]
 --!strict
 local Players = game:GetService("Players")
